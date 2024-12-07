@@ -1,20 +1,13 @@
 package com.example.customerdisplayhandler.api;
 
-import com.example.customerdisplayhandler.ui.CustomerDisplaySettingsChildFragment;
+import com.example.customerdisplayhandler.model.ServerInfo;
 
-public class CustomerDisplayManager {
-    private static CustomerDisplayManager INSTANCE;
-    public static CustomerDisplayManager newInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new CustomerDisplayManager();
-        }
-        return INSTANCE;
-    }
-
-    private CustomerDisplayManager() {
-    }
-
-    public CustomerDisplaySettingsChildFragment getCustomerDisplaySettingsChildFragment() {
-        return new CustomerDisplaySettingsChildFragment();
+public interface CustomerDisplayManager {
+    void startSearchForCustomerDisplays(SearchListener searchListener);
+    interface SearchListener {
+        void onSearchStarted();
+        void onSearchCompleted();
+        void onSearchFailed(String errorMessage);
+        void onCustomerDisplayFound(ServerInfo serverInfo);
     }
 }

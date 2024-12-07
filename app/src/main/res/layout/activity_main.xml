@@ -7,15 +7,24 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <Button
-        android:id="@+id/go_to_customer_display_btn"
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/go_to_customer_display_settings"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Customer displays"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:orientation="horizontal"
+        android:backgroundTint="@color/blue500"
+        android:paddingHorizontal="30dp"
+        android:paddingVertical="10dp"
+        android:text="Add Customer Display"
+        app:iconGravity="textStart"
+        app:icon="@drawable/wifi_24px"
+        app:iconSize="24dp"
+        app:iconTint="@color/pureWhite"
+        android:textColor="@color/pureWhite"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

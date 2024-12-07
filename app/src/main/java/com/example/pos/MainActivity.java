@@ -1,5 +1,7 @@
 package com.example.pos;
 
+import static androidx.core.app.PendingIntentCompat.getActivity;
+
 import android.os.Bundle;
 import android.widget.Button;
 import androidx.activity.EdgeToEdge;
@@ -7,7 +9,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
 import com.example.customerdisplayhandler.api.CustomerDisplayManager;
+import com.example.customerdisplayhandler.api.CustomerDisplayManagerImpl;
+import com.example.pos.ui.AddCustomerDisplayFragment;
 import com.example.pos.ui.CustomerDisplaySettingsDialogFragment;
 
 public class MainActivity extends AppCompatActivity {
@@ -24,19 +29,21 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        initCustomerDisplayHandler();
+        App app = (App) getApplication();
+        customerDisplayManager = app.getCustomerDisplayManager();
 
-        Button customerDisplayButton = findViewById(R.id.go_to_customer_display_btn);
-        customerDisplayButton.setOnClickListener(v -> showCustomerDisplayFragment());
+        Button customerDisplayButton = findViewById(R.id.go_to_customer_display_settings);
+        customerDisplayButton.setOnClickListener(v -> showCustomerDisplaySettingsFragment());
 
     }
 
-    private void showCustomerDisplayFragment() {
-        CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = CustomerDisplaySettingsDialogFragment.newInstance(customerDisplayManager.getCustomerDisplaySettingsChildFragment());
+    private void showCustomerDisplaySettingsFragment() {
+        CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = CustomerDisplaySettingsDialogFragment.newInstance();
         customerDisplaySettingsDialogFragment.show(getSupportFragmentManager(), "customer_display_settings");
     }
 
-    private void initCustomerDisplayHandler() {
-        customerDisplayManager = CustomerDisplayManager.newInstance();
+    private void showAddCustomerDisplayFragment() {
+        AddCustomerDisplayFragment addCustomerDisplayFragment = AddCustomerDisplayFragment.newInstance();
+        addCustomerDisplayFragment.show(getSupportFragmentManager(), "add_customer_display");
     }
 }

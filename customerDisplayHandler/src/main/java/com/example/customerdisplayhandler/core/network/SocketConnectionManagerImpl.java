@@ -9,6 +9,9 @@ import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.schedulers.Schedulers;
+
 public class SocketConnectionManagerImpl implements ISocketConnectionManager {
     private static final String TAG = "ClientSocketManager";
     private final ExecutorService executorService;
@@ -18,20 +21,19 @@ public class SocketConnectionManagerImpl implements ISocketConnectionManager {
     }
 
     @Override
-    public void connectToServer(String serverIPAddress, int serverPort,OnConnectToServerCompleted onConnectToServerCompleted) {
-        executorService.submit(
-                () -> {
+    public Single<Socket> connectToServer(String serverIPAddress, int serverPort) {
+        return Single.<Socket>create(emitter -> {
                     try {
                         Socket socket = new Socket(serverIPAddress, serverPort);
-                        Log.d(TAG, "Connected to server: " + serverIPAddress + ":" + serverPort);
                         socket.setKeepAlive(true);
-                        onConnectToServerCompleted.onServerConnectionSuccess(socket);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error connecting to server: " + e.getMessage() + " " + serverIPAddress + ":" + serverPort);
-                        onConnectToServerCompleted.onServerConnectionFailure(e);
+                        Log.d(TAG, "Connected to server: " + serverIPAddress + ":" + serverPort);
+                        emitter.onSuccess(socket);
+                    }catch (Exception e) {
+                        Log.e(TAG, "Error connecting to server: " + e.getMessage());
                     }
-                }
-        );
+                })
+                .subscribeOn(Schedulers.io()) // Perform the connection on an IO thread
+                .observeOn(Schedulers.io()); // Observe the result on the same IO thread
     }
 
     @Override

@@ -2,22 +2,30 @@ package com.example.pos.ui;
 
 import android.os.Bundle;
 
+import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 
+import com.example.customerdisplayhandler.ui.UiProvider;
 import com.example.pos.R;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 
-public class AddCustomerDisplayFragment extends Fragment {
+public class AddCustomerDisplayFragment extends DialogFragment {
+
+    public static final String TAG = AddCustomerDisplayFragment.class.getSimpleName();
 
     public AddCustomerDisplayFragment() {
         // Required empty public constructor
     }
 
-    public static AddCustomerDisplayFragment newInstance(String param1, String param2) {
+    public static AddCustomerDisplayFragment newInstance() {
         return new AddCustomerDisplayFragment();
     }
 
@@ -30,6 +38,41 @@ public class AddCustomerDisplayFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_add_customer_display, container, false);
+        View rootView = inflater.inflate(R.layout.fragment_add_customer_display, container, false);
+//        ViewGroup childContainer = rootView.findViewById(R.id.main);
+        View childView = UiProvider.getAddCustomerDisplayView(inflater, container);
+//        childContainer.addView(childView);
+        return rootView;
+    }
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        TextInputLayout nameInputLayout = view.findViewById(R.id.customer_display_name_text_input_layout);
+        nameInputLayout.setError("Name is required");
+        TextInputEditText nameEditText = view.findViewById(R.id.customer_display_name_edit_text);
+        MaterialButton searchButton = view.findViewById(R.id.customer_display_search_button);
+        searchButton.setOnClickListener(v -> showSearchCustomerDisplayFragment());
+
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        configureDialogWindow();
+    }
+
+    private void showSearchCustomerDisplayFragment() {
+        SearchCustomerDisplayDialogFragment searchCustomerDisplayDialogFragment = SearchCustomerDisplayDialogFragment.newInstance();
+        searchCustomerDisplayDialogFragment.show(getChildFragmentManager(), SearchCustomerDisplayDialogFragment.TAG);
+    }
+
+    private void configureDialogWindow() {
+        if (getDialog() != null && getDialog().getWindow() != null) {
+            getDialog().getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            getDialog().getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            getDialog().getWindow().setBackgroundDrawableResource(android.R.color.white);
+        }
     }
 }

@@ -27,6 +27,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.reactivex.rxjava3.core.Flowable;
+
 public class SocketDataSourceImpl implements ISocketDataSource {
     private static final String TAG = SocketDataSourceImpl.class.getSimpleName();
     private final ISocketConnectionManager socketConnectionManager;
@@ -51,66 +53,24 @@ public class SocketDataSourceImpl implements ISocketDataSource {
     }
 
     @Override
-    public void listenForUnknownServers(Socket socket, ServerInfo serverInfo) {
-        Log.d(TAG, "Attempting to listen for unknown server: " + serverInfo.getServerDeviceName());
-        AtomicReference<Boolean> isServerAlreadyConnected = new AtomicReference<>(false);
-        if(activeServerConnections.getData() != null){
-            activeServerConnections.getData().forEach(((serverInfoTemp, socketTemp) -> {
-                if (Objects.equals(socketTemp.getInetAddress().getHostAddress(), socket.getInetAddress().getHostAddress())) {
-                    isServerAlreadyConnected.set(true);
-                }
-            }));
-        }
-
-        AtomicReference<Boolean> isServerAlreadyDiscovered = new AtomicReference<>(false);
-        if(discoveredServerConnections != null){
-            discoveredServerConnections.forEach(((serverInfoTemp, socketTemp) -> {
-                if (Objects.equals(socketTemp.getInetAddress().getHostAddress(), socket.getInetAddress().getHostAddress())) {
-                    isServerAlreadyDiscovered.set(true);
-                }
-            }));
-        }
-
-        if (isServerAlreadyConnected.get()) {
-            Log.d(TAG, "Server already connected and listening: " + serverInfo.getServerDeviceName());
-            return;
-        }
-        if (isServerAlreadyDiscovered.get()) {
-            Log.d(TAG, "Server already discovered and listening: " + serverInfo.getServerDeviceName());
-            return;
-        }
-        unknownServerConnections.put(serverInfo, socket);
-        connectedServerManager.startListening(socket,
-                message -> {
-                    Log.i(TAG, "Message received from unknown server: " + message);
-                    Pair<ServerInfo, String> messagePair = new Pair<>(serverInfo, message);
-                    unknownServerMessageStreamObservable.setData(messagePair);
-                },
-                (e) -> {
-                    Log.e(TAG, "Error listening for unknown server removing server: " + serverInfo.getServerID());
-                    Boolean isRemoved = unknownServerConnections.remove(serverInfo, socket);
-                });
-    }
-
-    @Override
     public void getAvailableServers(String localIpAddress, int serverPort, OnServerScanCompleted onServerScanCompleted) {
-        serverDiscoveryManager.searchAvailableServersInNetwork(localIpAddress, serverPort, servers -> {
-            discoveredServerConnections = servers;
-            discoveredServerConnections.forEach(
-                    (serverInfo, socket) -> {
-                        AtomicReference<Boolean> isInPending = new AtomicReference<>(false);
-                        unknownServerConnections.forEach((serverInfoTemp, socketTemp) -> {
-                            if (Objects.equals(socketTemp.getInetAddress().getHostAddress(), socket.getInetAddress().getHostAddress())) {
-                                isInPending.set(true);
-                            }
-                        });
-                        if (isInPending.get()) {
-                            Boolean isRemoved = unknownServerConnections.remove(serverInfo, socket);
-                        }
-                    }
-            );
-            onServerScanCompleted.onSucess(servers);
-        },this);
+//        serverDiscoveryManager.searchAvailableServersInNetwork(localIpAddress, serverPort, servers -> {
+//            discoveredServerConnections = servers;
+//            discoveredServerConnections.forEach(
+//                    (serverInfo, socket) -> {
+//                        AtomicReference<Boolean> isInPending = new AtomicReference<>(false);
+//                        unknownServerConnections.forEach((serverInfoTemp, socketTemp) -> {
+//                            if (Objects.equals(socketTemp.getInetAddress().getHostAddress(), socket.getInetAddress().getHostAddress())) {
+//                                isInPending.set(true);
+//                            }
+//                        });
+//                        if (isInPending.get()) {
+//                            Boolean isRemoved = unknownServerConnections.remove(serverInfo, socket);
+//                        }
+//                    }
+//            );
+//            onServerScanCompleted.onSucess(servers);
+//        },this);
     }
 
     @Override
@@ -129,48 +89,48 @@ public class SocketDataSourceImpl implements ISocketDataSource {
         }
 
         activeServerConnections.getData().put(serverInfo, socket);
-        connectedServerManager.startListening(
-                socket,
-                (message) -> {
-                    Pair<ServerInfo, String> messagePair = new Pair<>(serverInfo, message);
-                    serverMessageStreamObservable.setData(messagePair);
-                },
-                (e) -> {
-                    Log.e(TAG, "Error listening for server: " + serverInfo.getServerID());
-                    Boolean isRemoved = activeServerConnections.getData().remove(serverInfo, socket);
-                }
-        );
+//        connectedServerManager.startListening(
+//                socket,
+//                (message) -> {
+//                    Pair<ServerInfo, String> messagePair = new Pair<>(serverInfo, message);
+//                    serverMessageStreamObservable.setData(messagePair);
+//                },
+//                (e) -> {
+//                    Log.e(TAG, "Error listening for server: " + serverInfo.getServerID());
+//                    Boolean isRemoved = activeServerConnections.getData().remove(serverInfo, socket);
+//                }
+//        );
     }
 
     @Override
     public void sendConnectionRequest(ServerInfo serverInfo, ClientInfo clientInfo) {
-        if (discoveredServerConnections.containsKey(serverInfo)) {
-            Socket socket = discoveredServerConnections.get(serverInfo);
-            SocketMessageBase socketMessageBase = new SocketMessageBase(clientInfo, SocketConfigConstants.REQUEST_CONNECTION_APPROVAL, serverInfo.getServerID(), clientInfo.getClientID());
-            String message = jsonUtil.toJson(socketMessageBase);
-            connectedServerManager.sendMessageToServer(socket, message, new OnSendMessageCompleted() {
-                @Override
-                public void onMessageSent(String message) {
-                    Log.i(TAG, "Message sent to server: " + message);
-                    catchConnectionApprovalResponse(serverInfo, isApproved -> {
-                        if (isApproved) {
-                            addActiveServer(serverInfo);
-                            activeServerConnections.setData(discoveredServerConnections);
-                            Log.i(TAG, "Connection approved by server: " + serverInfo.getServerDeviceName());
-                        }else {
-                            Map<ServerInfo,Socket> connections = activeServerConnections.getData();
-                            Log.i(TAG, "Connection not approved by server: " + serverInfo.getServerDeviceName());
-                            connections.remove(serverInfo);
-                        }
-                    });
-                }
-
-                @Override
-                public void onError(Exception e) {
-                    Log.e(TAG, "Error sending message to server: " + e.getMessage());
-                }
-            });
-        }
+//        if (discoveredServerConnections.containsKey(serverInfo)) {
+//            Socket socket = discoveredServerConnections.get(serverInfo);
+//            SocketMessageBase socketMessageBase = new SocketMessageBase(clientInfo, SocketConfigConstants.REQUEST_CONNECTION_APPROVAL, serverInfo.getServerID(), clientInfo.getClientID());
+//            String message = jsonUtil.toJson(socketMessageBase);
+//            connectedServerManager.sendMessageToServer(socket, message, new OnSendMessageCompleted() {
+//                @Override
+//                public void onMessageSent(String message) {
+//                    Log.i(TAG, "Message sent to server: " + message);
+//                    catchConnectionApprovalResponse(serverInfo, isApproved -> {
+//                        if (isApproved) {
+//                            addActiveServer(serverInfo);
+//                            activeServerConnections.setData(discoveredServerConnections);
+//                            Log.i(TAG, "Connection approved by server: " + serverInfo.getServerDeviceName());
+//                        }else {
+//                            Map<ServerInfo,Socket> connections = activeServerConnections.getData();
+//                            Log.i(TAG, "Connection not approved by server: " + serverInfo.getServerDeviceName());
+//                            connections.remove(serverInfo);
+//                        }
+//                    });
+//                }
+//
+//                @Override
+//                public void onError(Exception e) {
+//                    Log.e(TAG, "Error sending message to server: " + e.getMessage());
+//                }
+//            });
+//        }
     }
 
     private void catchConnectionApprovalResponse(ServerInfo serverInfo, OnConnectionApprovalReceived onConnectionApprovalReceived) {

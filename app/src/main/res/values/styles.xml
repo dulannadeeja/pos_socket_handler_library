@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Common Style for TextInputLayout -->
+    <style name="CustomTextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.FilledBox">
+        <item name="android:background">@color/pureWhite</item>
+        <item name="boxBackgroundMode">filled</item>
+        <item name="boxStrokeColor">@color/edit_text_box_colors</item>
+        <item name="boxStrokeErrorColor">@color/errorColor</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="errorTextColor">@color/errorColor</item>
+        <item name="errorTextAppearance">@style/CustomErrorTextAppearance</item>
+        <item name="hintTextColor">@color/edit_text_hint_color</item>
+    </style>
+
+    <!-- Common Style for TextInputEditText -->
+    <style name="CustomTextInputEditText" parent="Widget.MaterialComponents.TextInputEditText.FilledBox">
+        <item name="android:background">@color/pureWhite</item>
+        <item name="android:imeOptions">actionNext</item>
+        <item name="android:importantForAccessibility">yes</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:paddingTop">30dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:textColor">@color/textPrimaryColor</item>
+        <item name="android:textColorHint">@color/textSecondaryColor</item>
+    </style>
+
+    <!-- Common Style for Error Text Appearance -->
+    <style name="CustomErrorTextAppearance">
+        <item name="android:textColor">@color/errorColor</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:layout_marginTop">4dp</item> <!-- To ensure space above error text -->
+        <item name="android:layout_marginBottom">8dp</item> <!-- To ensure space below error text -->
+    </style>
+
+    <!-- Common Style for SwitchCompat -->
+    <style name="CustomSwitchCompat" parent="Widget.AppCompat.CompoundButton.Switch">
+        <item name="android:thumbTint">@color/switch_thumb_tint_color</item>
+        <item name="android:trackTint">@color/switch_track_tint_color</item>
+        <item name="android:scaleX">1.1</item>
+        <item name="android:scaleY">1</item>
+        <item name="android:padding">0dp</item>
+        <item name="android:thumbTintMode">src_in</item>
+        <item name="android:trackTintMode">src_in</item>
+    </style>
+
+    <!-- Common Style for Primary button -->
+    <style name="PrimaryButtonStyle" parent="Widget.MaterialComponents.Button">
+        <item name="materialThemeOverlay">@style/PrimaryButtonStyleThemeOverlay</item>
+        <item name="android:textColor">@color/pureWhite</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:background">@drawable/primary_button_background</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <!-- Common Style for Secondary button -->
+    <style name="SecondaryButtonStyle" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textColor">@color/textPrimaryColor</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:background">@drawable/secondary_button_background</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="PrimaryButtonStyleThemeOverlay">
+        <item name="colorPrimary">@color/primaryColor</item>
+    </style>
+
+    <style name="CustomMaterialSwitch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <!-- Thumb and track colors for MaterialSwitch -->
+        <item name="thumbTint">@color/switch_thumb_tint_color</item> <!-- Thumb color when active -->
+        <item name="trackTint">@color/switch_track_tint_color</item> <!-- Track color when active -->
+        <item name="trackDecoration">@null</item>
+        <!-- Material size adjustments -->
+        <item name="android:padding">5dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:scaleX">0.8</item>
+        <item name="android:scaleY">0.8</item>
+    </style>
+</resources>

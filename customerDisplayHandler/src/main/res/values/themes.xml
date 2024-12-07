@@ -1,0 +1,17 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="LibraryTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize theme attributes -->
+        <item name="primaryColor">?attr/primaryColor</item>
+        <item name="primaryDarkColor">?attr/primaryDarkColor</item>
+        <item name="errorColor">?attr/errorColor</item>
+        <item name="accentColor">?attr/accentColor</item>
+        <item name="accentDarkColor">?attr/accentDarkColor</item>
+        <item name="textPrimaryColor">?attr/textPrimaryColor</item>
+        <item name="textSecondaryColor">?attr/textSecondaryColor</item>
+        <item name="dividerColor">?attr/dividerColor</item>
+        <item name="pureWhite">?attr/pureWhite</item>
+        <item name="pureBlack">?attr/pureBlack</item>
+        <item name="grayDark">?attr/grayDark</item>
+        <item name="grayLight">?attr/grayLight</item>
+    </style>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="LibraryFloatingActionButton" parent="Widget.MaterialComponents.FloatingActionButton">
+        <item name="background">@drawable/fab_background</item>
+        <item name="fabSize">normal</item>
+        <item name="backgroundTint">?attr/primaryColor</item>
+    </style>
+</resources>

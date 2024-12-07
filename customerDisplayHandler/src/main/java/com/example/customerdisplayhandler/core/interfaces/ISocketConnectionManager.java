@@ -4,7 +4,9 @@ import com.example.customerdisplayhandler.core.callbacks.OnConnectToServerComple
 
 import java.net.Socket;
 
+import io.reactivex.rxjava3.core.Single;
+
 public interface ISocketConnectionManager {
-    public void connectToServer(String ip, int port, OnConnectToServerCompleted onConnectToServerCompleted);
+    public Single<Socket> connectToServer(String serverIPAddress, int serverPort);
     public void disconnectSafelyFromServer(Socket serverSocket);
 }

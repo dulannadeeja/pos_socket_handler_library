@@ -48,5 +48,4 @@
                 android:background="@color/dividerColor" />
         </LinearLayout>
     </LinearLayout>
-
 </LinearLayout>

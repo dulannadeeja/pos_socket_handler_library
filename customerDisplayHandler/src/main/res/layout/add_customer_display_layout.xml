@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/pureWhite"
+    android:paddingVertical="20dp"
+    android:elevation="20dp"
+    android:paddingHorizontal="10dp"
+    android:orientation="vertical">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/customer_display_name_text_input_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:errorTextColor="@color/errorColor"
+        app:hintTextColor="@color/textSecondaryColor">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/customer_display_name_edit_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Enter Customer Display Name"
+            android:imeOptions="actionNext"
+            android:importantForAccessibility="yes"
+            android:inputType="text"
+            android:textColor="@color/textSecondaryColor"
+            android:textColorHint="@color/textSecondaryColor" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/customer_display_ip_address_text_input_layout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            app:errorTextColor="@color/errorColor"
+            app:hintTextColor="@color/textSecondaryColor">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/customer_display_ip_address_edit_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Enter IP Address of Customer Display"
+                android:imeOptions="actionNext"
+                android:importantForAccessibility="yes"
+                android:inputType="text"
+                android:textColor="@color/textSecondaryColor"
+                android:textColorHint="@color/textSecondaryColor" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/customer_display_connect_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_weight="0"
+            android:backgroundTint="@color/blue500"
+            android:padding="10dp"
+            android:text="Search"
+            android:textColor="@color/pureWhite" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:background="@color/dividerColor" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Dark mode enabled"
+            android:textColor="@color/textPrimaryColor"
+            android:textSize="16sp" />
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/customer_display_dark_mode_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="10dp"
+            android:checked="true"
+            android:thumbTint="@color/blue500"
+            android:trackTint="@color/blue400" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:background="@color/dividerColor" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/add_customer_display_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:backgroundTint="@color/blue500"
+        android:padding="10dp"
+        android:text="Add Customer Display"
+        app:iconGravity="textStart"
+        app:icon="@drawable/wifi_24px"
+        app:iconSize="24dp"
+        app:iconTint="@color/pureWhite"
+        android:textColor="@color/pureWhite" />
+
+</LinearLayout>

@@ -3,17 +3,17 @@ package com.example.customerdisplayhandler.model;
 import java.util.UUID;
 
 public class ServerInfo {
-    private UUID serverID;
+    private String serverID;
     private String serverIpAddress;
     private String serverDeviceName;
 
-    public ServerInfo(UUID serverID, String serverIpAddress, String serverDeviceName) {
+    public ServerInfo(String serverID, String serverIpAddress, String serverDeviceName) {
         this.serverID = serverID;
         this.serverIpAddress = serverIpAddress;
         this.serverDeviceName = serverDeviceName;
     }
 
-    public UUID getServerID() {
+    public String getServerID() {
         return serverID;
     }
 

@@ -1,6 +1,9 @@
 package com.example.customerdisplayhandler.core.interfaces;
-import com.example.customerdisplayhandler.core.callbacks.OnSearchServerCompleted;
+import android.util.Pair;
+import com.example.customerdisplayhandler.model.ServerInfo;
+import java.net.Socket;
+import io.reactivex.rxjava3.core.Flowable;
 
 public interface IServerDiscoveryManager {
-    void searchAvailableServersInNetwork(String localIPAddress, int serverPort, OnSearchServerCompleted onSearchServerCompleted,ISocketDataSource socketDataSource);
+    Flowable<Pair<ServerInfo, Socket>> searchAvailableServersInNetwork(String localIPAddress, int serverPort);
 }

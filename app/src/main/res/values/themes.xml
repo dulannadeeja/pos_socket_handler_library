@@ -1,9 +1,18 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
-    <style name="Base.Theme.POS" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.POS" parent="Theme.Material3.DayNight">
         <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="primaryColor">@color/primaryColor</item>
+        <item name="primaryDarkColor">@color/primaryDarkColor</item>
+        <item name="errorColor">@color/errorColor</item>
+        <item name="accentColor">@color/accentColor</item>
+        <item name="accentDarkColor">@color/accentDarkColor</item>
+        <item name="textPrimaryColor">@color/textPrimaryColor</item>
+        <item name="textSecondaryColor">@color/textSecondaryColor</item>
+        <item name="dividerColor">@color/dividerColor</item>
+        <item name="pureWhite">@color/pureWhite</item>
+        <item name="pureBlack">@color/pureBlack</item>
+        <item name="grayDark">@color/gray600</item>
+        <item name="grayLight">@color/gray500</item>
     </style>
-
-    <style name="Theme.POS" parent="Base.Theme.POS" />
 </resources>

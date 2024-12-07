@@ -13,7 +13,6 @@ public interface ISocketDataSource {
     void getAvailableServers(String localIpAddress, int serverPort, OnServerScanCompleted onServerScanCompleted);
     void sendConnectionRequest(ServerInfo serverInfo, ClientInfo clientInfo);
     void listenForServerMessages(ServerInfo serverInfo);
-    void listenForUnknownServers(Socket socket,ServerInfo serverInfo);
     void getClientInfo(OnClientInfoRetrieved onClientInfoRetrieved);
     void saveClientInfo(ClientInfo clientInfo, OnClientInfoSaved onClientInfoSaved);
     void addActiveServer(ServerInfo serverInfo);

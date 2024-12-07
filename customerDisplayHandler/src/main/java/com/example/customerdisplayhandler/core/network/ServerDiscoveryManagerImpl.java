@@ -21,119 +21,102 @@ import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import io.reactivex.rxjava3.core.BackpressureStrategy;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.disposables.CompositeDisposable;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 
 public class ServerDiscoveryManagerImpl implements IServerDiscoveryManager {
     private final static String TAG = ServerDiscoveryManagerImpl.class.getSimpleName();
     private final ISocketConnectionManager socketConnectionManager;
     private final IConnectedServerManager connectedServerManager;
     private final IJsonUtil jsonUtil;
-    private final ExecutorService executorService;
+    private CompositeDisposable compositeDisposable = new CompositeDisposable();
 
     public ServerDiscoveryManagerImpl(ISocketConnectionManager socketConnectionManager, IConnectedServerManager connectedServerManager, IJsonUtil jsonUtil) {
-        this.executorService = Executors.newCachedThreadPool();
         this.socketConnectionManager = socketConnectionManager;
         this.connectedServerManager = connectedServerManager;
         this.jsonUtil = jsonUtil;
     }
 
     @Override
-    public void searchAvailableServersInNetwork(String localIPAddress, int serverPort, OnSearchServerCompleted onSearchServerCompleted, ISocketDataSource socketDataSource) {
-        executorService.submit(
-                () -> {
-                    Map<ServerInfo, Socket> connectedServers = new HashMap<>();
-                    String[] ipParts = localIPAddress.split("\\.");
-                    String baseIP = ipParts[0] + "." + ipParts[1] + "." + ipParts[2] + ".";
-                    // TODO: Remove hardcoded IP address, use the baseIP instead
-//                    baseIP = "172.20.10.";
-                    for (int i = 0; i < 256; i++) {
-                        String ip = baseIP + i;
-                        Log.i(TAG, "Searching for server: " + ip);
-                        if(!ip.equals(localIPAddress)) {
-                            socketConnectionManager.connectToServer(ip, serverPort, new OnConnectToServerCompleted() {
-                                @Override
-                                public void onServerConnectionSuccess(Socket socket) {
-                                    Log.i(TAG, "Connected to server: " + ip);
-                                    // give temporary serverId to the server,
-                                    // this will be replaced by the serverId received from the server
-                                    UUID serverID = UUID.randomUUID();
-                                    ServerInfo serverInfo = new ServerInfo(serverID, ip, "Unknown");
-                                    waitingForHandshakeFromServer(socket, serverInfo, serverInfoReceived -> {
-                                                connectedServers.put(serverInfoReceived, socket);
-                                                onSearchServerCompleted.serversFound(connectedServers);
-                                            },
-                                            () -> {
-                                                // If handshake times out, simply ignore it
-                                                Log.e(TAG, "Handshake timed out for server: " + serverInfo.getServerIpAddress());
-                                            },
-                                            socketDataSource);
-                                }
+    public Flowable<Pair<ServerInfo, Socket>> searchAvailableServersInNetwork(String localIPAddress, int serverPort) {
+        return Flowable.<Pair<ServerInfo, Socket>>create(emitter -> {
+                    try {
+                        String[] ipParts = localIPAddress.split("\\.");
+                        String baseIP = ipParts[0] + "." + ipParts[1] + "." + ipParts[2] + ".";
+                        // TODO: Remove hardcoded IP address, use the baseIP instead
+                        baseIP = "10.30.100.";
 
-                                @Override
-                                public void onServerConnectionFailure(Exception e) {
-                                    // If connection to server fails, simply ignore it
-                                    // Log.e(TAG, "Connection to server failed: " + e.getMessage());
-                                }
-                            });
-                        }
-//                        try {
-//                            Thread.sleep(100);
-//                        } catch (InterruptedException e) {
-//                            throw new RuntimeException(e);
-//                        }
-                    }
-                }
-        );
-    }
+                        // Use a CountDownLatch to wait for all IP checks to finish
+                        CountDownLatch latch = new CountDownLatch(256);
 
-    private void waitingForHandshakeFromServer(Socket socket, ServerInfo serverInfo, OnHandshakeMessageReceived onHandshakeMessageReceived, OnHandshakeTimeout onHandshakeTimeout, ISocketDataSource socketDataSource) {
-        executorService.submit(() -> {
-            try {
-                Timer timer = new Timer();
-                Log.i(TAG, "Waiting for handshake from server: " + serverInfo.getServerIpAddress());
 
-                // Start listening for server messages
-                socketDataSource.listenForUnknownServers(socket, serverInfo);
-                socketDataSource.getUnknownServerMessageStreamObservable().addObserver(new DataObserver<>() {
-                    @Override
-                    public void onDataChanged(Pair<ServerInfo, String> data) {
-                        synchronized (timer) {
-                            try {
-                                ServerInfo serverInfoReceived = processHandshake(data.second);
-                                // we have received the valid handshake message,
-                                // now we can stop the timer and proceed
-                                onHandshakeMessageReceived.handshakeMessageReceived(serverInfoReceived);
-                                timer.cancel();
-                            } catch (Exception e) {
-                                Log.e(TAG, "Error processing handshake message: " + e.getMessage());
+                        for (int i = 0; i < 256; i++) {
+                            String ip = baseIP + i;
+                            if (!ip.equals(localIPAddress)) {
+                                compositeDisposable.add(
+                                        inspectIP(ip, serverPort)
+                                                .doOnTerminate(() -> latch.countDown())
+                                                .subscribe(pair -> {
+                                                    emitter.onNext(pair);
+                                                }, error -> {
+                                                    // ignore errors
+                                                })
+                                );
                             }
                         }
-                    }
 
-                    @Override
-                    public void onError(Exception e) {
-                        Log.e(TAG, "Error listening for server messages: " + e.getMessage());
+                        // Wait for all IP checks to finish
+                        latch.await();
+                        emitter.onComplete();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error searching for servers in network: " + e.getMessage());
                     }
-                });
-
-                // Schedule a timeout task
-                scheduleSocketTimeout(timer, onHandshakeTimeout);
-            } catch (Exception e) {
-                Log.e(TAG, "Error waiting for handshake from server: " ,e);
-            }
-        });
+                }, BackpressureStrategy.BUFFER)
+                .doOnSubscribe(disposable -> Log.i(TAG, "Searching for servers in network"))
+                .doOnComplete(() -> Log.i(TAG, "Search for servers in network completed"))
+                .subscribeOn(Schedulers.io());
     }
 
-    private void scheduleSocketTimeout(Timer timer, OnHandshakeTimeout onHandshakeTimeout) {
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                synchronized (timer) {
-                    onHandshakeTimeout.onTimeout();
-                }
-            }
-        }, SocketConfigConstants.CONNECTION_REQUEST_TIMEOUT);
+    private Single<Pair<ServerInfo, Socket>> inspectIP(String ip, int serverPort) {
+        return socketConnectionManager.connectToServer(ip, serverPort)
+                .flatMap(socket -> {
+                    String serverID = UUID.randomUUID().toString();
+                    ServerInfo serverInfo = new ServerInfo(serverID, ip, "Unknown");
+                    connectedServerManager.addConnectedServer(socket, serverInfo);
+                    return Single.just(new Pair<>(serverInfo, socket));
+                }).flatMap(pair -> waitingForHandshakeFromServer(pair.first.getServerID())
+                        .map(serverInfo -> new Pair<>(serverInfo, pair.second)))
+                .timeout(SocketConfigConstants.CONNECTION_REQUEST_TIMEOUT, TimeUnit.MILLISECONDS) // Set a timeout for the handshake
+                .doOnSuccess(pair -> Log.i(TAG, "IP inspected: " + ip))
+                .subscribeOn(Schedulers.io());
+    }
+
+    private Single<ServerInfo> waitingForHandshakeFromServer(String serverId) {
+        return connectedServerManager.getServerMessageSubject()
+                .filter(pair -> pair.first.equals(serverId)) // Filter messages from the specified server
+                .take(1) // Take only the first matching message
+                .singleOrError()
+                .flatMap(messagePair -> {
+                    try {
+                        ServerInfo serverInfo = processHandshake(messagePair.second);
+                        return Single.just(serverInfo);
+                    } catch (Exception e) {
+                        return Single.error(e);
+                    }
+                })
+                .doOnSubscribe(disposable -> Log.i(TAG, "Waiting for handshake from server: " + serverId))
+                .doOnError(error -> Log.e(TAG, "Handshake timed out or failed for server: " + serverId + ", " + error.getMessage()))
+                .subscribeOn(Schedulers.io())
+                .observeOn(Schedulers.io());
     }
 
     private ServerInfo processHandshake(String message) throws Exception {
@@ -156,13 +139,5 @@ public class ServerDiscoveryManagerImpl implements IServerDiscoveryManager {
             throw new Exception("Invalid handshake message received: " + message);
         }
         return serverInfo;
-    }
-
-    private interface OnHandshakeTimeout {
-        void onTimeout();
-    }
-
-    private interface OnHandshakeMessageReceived {
-        void handshakeMessageReceived(ServerInfo serverInfo);
     }
 }

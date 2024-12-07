@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="LibraryCustomColors">
+        <attr name="primaryColor" format="color" />
+        <attr name="primaryDarkColor" format="color" />
+        <attr name="errorColor" format="color" />
+        <attr name="accentColor" format="color" />
+        <attr name="accentDarkColor" format="color" />
+        <attr name="textPrimaryColor" format="color" />
+        <attr name="textSecondaryColor" format="color" />
+        <attr name="dividerColor" format="color" />
+        <attr name="pureWhite" format="color" />
+        <attr name="pureBlack" format="color" />
+        <attr name="grayDark" format="color" />
+        <attr name="grayLight" format="color" />
+    </declare-styleable>
+</resources>
