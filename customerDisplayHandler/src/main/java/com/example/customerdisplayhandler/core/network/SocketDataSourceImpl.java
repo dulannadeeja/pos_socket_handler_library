@@ -3,17 +3,16 @@ package com.example.customerdisplayhandler.core.network;
 import android.util.Log;
 import android.util.Pair;
 
-import com.example.customerdisplayhandler.helpers.ISharedPrefManager;
+import com.example.customerdisplayhandler.helpers.SharedPrefManager;
 import com.example.customerdisplayhandler.model.ClientInfo;
 import com.example.customerdisplayhandler.model.ConnectionApproval;
 import com.example.customerdisplayhandler.model.ServerInfo;
 import com.example.customerdisplayhandler.model.SocketMessageBase;
 import com.example.customerdisplayhandler.utils.SharedPrefLabels;
 import com.example.customerdisplayhandler.utils.SocketConfigConstants;
-import com.example.customerdisplayhandler.core.callbacks.OnSendMessageCompleted;
 import com.example.customerdisplayhandler.core.interfaces.DataObserver;
 import com.example.customerdisplayhandler.core.interfaces.IConnectedServerManager;
-import com.example.customerdisplayhandler.core.interfaces.IJsonUtil;
+import com.example.customerdisplayhandler.utils.IJsonUtil;
 import com.example.customerdisplayhandler.core.interfaces.IServerDiscoveryManager;
 import com.example.customerdisplayhandler.core.interfaces.ISocketConnectionManager;
 import com.example.customerdisplayhandler.core.interfaces.ISocketDataSource;
@@ -22,19 +21,15 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
-
-import io.reactivex.rxjava3.core.Flowable;
 
 public class SocketDataSourceImpl implements ISocketDataSource {
     private static final String TAG = SocketDataSourceImpl.class.getSimpleName();
     private final ISocketConnectionManager socketConnectionManager;
     private final IServerDiscoveryManager serverDiscoveryManager;
     private final IConnectedServerManager connectedServerManager;
-    private final ISharedPrefManager sharedPrefManager;
+    private final SharedPrefManager sharedPrefManager;
     private final IJsonUtil jsonUtil;
     private Map<ServerInfo, Socket> discoveredServerConnections = new HashMap<>();
     private Map<ServerInfo, Socket> unknownServerConnections = new HashMap<>();
@@ -43,7 +38,7 @@ public class SocketDataSourceImpl implements ISocketDataSource {
     private final ObservableData<Pair<ServerInfo, String>> unknownServerMessageStreamObservable = new ObservableData<>();
     private ExecutorService executorService;
 
-    public SocketDataSourceImpl(ISocketConnectionManager socketConnectionManager, IServerDiscoveryManager serverDiscoveryManager, IConnectedServerManager connectedServerManager, IJsonUtil jsonUtil, ISharedPrefManager sharedPrefManager) {
+    public SocketDataSourceImpl(ISocketConnectionManager socketConnectionManager, IServerDiscoveryManager serverDiscoveryManager, IConnectedServerManager connectedServerManager, IJsonUtil jsonUtil, SharedPrefManager sharedPrefManager) {
         this.socketConnectionManager = socketConnectionManager;
         this.serverDiscoveryManager = serverDiscoveryManager;
         this.connectedServerManager = connectedServerManager;

@@ -5,10 +5,10 @@ import java.util.UUID;
 public class SocketMessageBase {
     private Object data;
     private String command;
-    private UUID receiverId;
-    private UUID senderId;
+    private String receiverId;
+    private String senderId;
 
-    public SocketMessageBase(Object data, String command, UUID receiverId, UUID senderId) {
+    public SocketMessageBase(Object data, String command, String receiverId, String senderId) {
         this.data = data;
         this.command = command;
         this.receiverId = receiverId;
@@ -23,11 +23,11 @@ public class SocketMessageBase {
         return command;
     }
 
-    public UUID getReceiverId() {
+    public String getReceiverId() {
         return receiverId;
     }
 
-    public UUID getSenderId() {
+    public String getSenderId() {
         return senderId;
     }
 }

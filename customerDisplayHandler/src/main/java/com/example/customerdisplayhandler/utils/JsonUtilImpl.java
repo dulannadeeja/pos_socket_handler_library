@@ -1,5 +1,4 @@
 package com.example.customerdisplayhandler.utils;
-import com.example.customerdisplayhandler.core.interfaces.IJsonUtil;
 import com.google.gson.Gson;
 
 public class JsonUtilImpl implements IJsonUtil {

@@ -2,18 +2,34 @@ package com.example.pos.ui;
 
 import android.os.Bundle;
 import androidx.fragment.app.DialogFragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.LinearLayout;
+
+import com.example.customerdisplayhandler.api.CustomerDisplayManager;
+import com.example.customerdisplayhandler.model.ServerInfo;
 import com.example.customerdisplayhandler.ui.UiProvider;
 import com.example.customerdisplayhandler.ui.callbacks.AddNewDisplayFabListener;
+import com.example.pos.App;
 import com.example.pos.R;
+import com.example.pos.adapters.ConnectedCustomerDisplayAdapter;
+
+import java.util.List;
 
 public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
 
-    private static final String TAG = CustomerDisplaySettingsDialogFragment.class.getSimpleName();
+    public static final String TAG = CustomerDisplaySettingsDialogFragment.class.getSimpleName();
     private AddNewDisplayFabListener addNewDisplayFabListener;
+    private RecyclerView connectedCustomerDisplaysRecyclerView;
+    private LinearLayout noConnectedCustomerDisplaysLayout;
+    private ConnectedCustomerDisplayAdapter connectedCustomerDisplayAdapter;
+    private CustomerDisplayManager customerDisplayManager;
 
     public CustomerDisplaySettingsDialogFragment() {
         // Required empty public constructor
@@ -45,6 +61,42 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+
+        App app = (App) requireActivity().getApplication();
+        customerDisplayManager = app.getCustomerDisplayManager();
+
+        connectedCustomerDisplaysRecyclerView = view.findViewById(com.example.customerdisplayhandler.R.id.connected_displays_recycler_view);
+        noConnectedCustomerDisplaysLayout = view.findViewById(com.example.customerdisplayhandler.R.id.no_connected_displays_layout);
+
+        connectedCustomerDisplayAdapter = new ConnectedCustomerDisplayAdapter(serverInfo -> {
+            Log.d(TAG, "Server info clicked: " + serverInfo.getServerDeviceName());
+        });
+        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(requireContext());
+        connectedCustomerDisplaysRecyclerView.setLayoutManager(linearLayoutManager);
+        connectedCustomerDisplaysRecyclerView.setAdapter(connectedCustomerDisplayAdapter);
+
+        List<ServerInfo> pairedCustomerDisplays = customerDisplayManager.getPairedCustomerDisplays();
+        if (pairedCustomerDisplays.isEmpty()) {
+            connectedCustomerDisplaysRecyclerView.setVisibility(View.GONE);
+            noConnectedCustomerDisplaysLayout.setVisibility(View.VISIBLE);
+        } else {
+            connectedCustomerDisplayAdapter.updateConnectedDisplayList(pairedCustomerDisplays);
+            connectedCustomerDisplaysRecyclerView.setVisibility(View.VISIBLE);
+            noConnectedCustomerDisplaysLayout.setVisibility(View.GONE);
+        }
+
+    }
+
+    public void refreshConnectedCustomerDisplays() {
+        List<ServerInfo> pairedCustomerDisplays = customerDisplayManager.getPairedCustomerDisplays();
+        if (pairedCustomerDisplays.isEmpty()) {
+            connectedCustomerDisplaysRecyclerView.setVisibility(View.GONE);
+            noConnectedCustomerDisplaysLayout.setVisibility(View.VISIBLE);
+        } else {
+            connectedCustomerDisplayAdapter.updateConnectedDisplayList(pairedCustomerDisplays);
+            connectedCustomerDisplaysRecyclerView.setVisibility(View.VISIBLE);
+            noConnectedCustomerDisplaysLayout.setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -55,7 +107,7 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
 
     private void showAddCustomerDisplayFragment() {
         AddCustomerDisplayFragment addCustomerDisplayFragment = AddCustomerDisplayFragment.newInstance();
-        addCustomerDisplayFragment.show(getChildFragmentManager(), AddCustomerDisplayFragment.TAG);
+        addCustomerDisplayFragment.show(requireActivity().getSupportFragmentManager(), AddCustomerDisplayFragment.TAG);
     }
 
     private void configureDialogWindow() {

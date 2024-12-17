@@ -5,11 +5,14 @@ import android.os.Bundle;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.Button;
 
+import com.example.customerdisplayhandler.model.ServerInfo;
 import com.example.customerdisplayhandler.ui.UiProvider;
 import com.example.pos.R;
 import com.google.android.material.button.MaterialButton;
@@ -20,6 +23,10 @@ import com.google.android.material.textfield.TextInputLayout;
 public class AddCustomerDisplayFragment extends DialogFragment {
 
     public static final String TAG = AddCustomerDisplayFragment.class.getSimpleName();
+    private TextInputEditText nameEditText;
+    private TextInputEditText ipAddressEditText;
+    private ServerInfo selectedServerInfo;
+    private MaterialButton pairButton;
 
     public AddCustomerDisplayFragment() {
         // Required empty public constructor
@@ -51,10 +58,27 @@ public class AddCustomerDisplayFragment extends DialogFragment {
 
         TextInputLayout nameInputLayout = view.findViewById(R.id.customer_display_name_text_input_layout);
         nameInputLayout.setError("Name is required");
-        TextInputEditText nameEditText = view.findViewById(R.id.customer_display_name_edit_text);
+        nameEditText = view.findViewById(R.id.customer_display_name_edit_text);
+        ipAddressEditText = view.findViewById(R.id.customer_display_ip_address_edit_text);
         MaterialButton searchButton = view.findViewById(R.id.customer_display_search_button);
         searchButton.setOnClickListener(v -> showSearchCustomerDisplayFragment());
+        pairButton = view.findViewById(R.id.pair_customer_display_button);
 
+        pairButton.setOnClickListener(v -> {
+            if (selectedServerInfo != null) {
+                Log.d(TAG, "Pairing customer display: " + selectedServerInfo.getServerID());
+                PairingFragment pairingFragment = PairingFragment.newInstance(selectedServerInfo);
+                pairingFragment.show(getChildFragmentManager(), PairingFragment.TAG);
+            }
+        });
+
+    }
+
+    public void updateSelectedCustomerDisplay(ServerInfo serverInfo) {
+        selectedServerInfo = serverInfo;
+        Log.d(TAG, "Updating customer display: " + serverInfo.getServerID());
+        nameEditText.setText(serverInfo.getServerDeviceName());
+        ipAddressEditText.setText(serverInfo.getServerIpAddress());
     }
 
     @Override
@@ -65,7 +89,7 @@ public class AddCustomerDisplayFragment extends DialogFragment {
 
     private void showSearchCustomerDisplayFragment() {
         SearchCustomerDisplayDialogFragment searchCustomerDisplayDialogFragment = SearchCustomerDisplayDialogFragment.newInstance();
-        searchCustomerDisplayDialogFragment.show(getChildFragmentManager(), SearchCustomerDisplayDialogFragment.TAG);
+        searchCustomerDisplayDialogFragment.show(requireActivity().getSupportFragmentManager(), SearchCustomerDisplayDialogFragment.TAG);
     }
 
     private void configureDialogWindow() {

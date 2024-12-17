@@ -1,7 +1,5 @@
 package com.example.pos;
 
-import static androidx.core.app.PendingIntentCompat.getActivity;
-
 import android.os.Bundle;
 import android.widget.Button;
 import androidx.activity.EdgeToEdge;
@@ -9,9 +7,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-
 import com.example.customerdisplayhandler.api.CustomerDisplayManager;
-import com.example.customerdisplayhandler.api.CustomerDisplayManagerImpl;
+import com.example.customerdisplayhandler.core.network.NetworkDiscovery;
 import com.example.pos.ui.AddCustomerDisplayFragment;
 import com.example.pos.ui.CustomerDisplaySettingsDialogFragment;
 
@@ -33,13 +30,16 @@ public class MainActivity extends AppCompatActivity {
         customerDisplayManager = app.getCustomerDisplayManager();
 
         Button customerDisplayButton = findViewById(R.id.go_to_customer_display_settings);
-        customerDisplayButton.setOnClickListener(v -> showCustomerDisplaySettingsFragment());
+        NetworkDiscovery networkDiscovery = new NetworkDiscovery(getApplicationContext());
+        customerDisplayButton.setOnClickListener(v -> {
+            showCustomerDisplaySettingsFragment();
+        });
 
     }
 
     private void showCustomerDisplaySettingsFragment() {
         CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = CustomerDisplaySettingsDialogFragment.newInstance();
-        customerDisplaySettingsDialogFragment.show(getSupportFragmentManager(), "customer_display_settings");
+        customerDisplaySettingsDialogFragment.show(getSupportFragmentManager(), CustomerDisplaySettingsDialogFragment.TAG);
     }
 
     private void showAddCustomerDisplayFragment() {

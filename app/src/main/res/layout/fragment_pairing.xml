@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    tools:context=".ui.PairingFragment"
+    android:orientation="horizontal"
+    android:padding="10dp"
+    >
+    <ProgressBar
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/progressBar"
+        />
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="10dp"
+        >
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/pairingText"
+            android:text="Pairing customer display"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:textColor="@color/textPrimaryColor"
+            />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/pairing_status_tv"
+            android:textSize="16sp"
+            android:textColor="@color/textSecondaryColor"
+            android:text="Searching for device..."
+            />
+    </LinearLayout>
+
+
+</LinearLayout>

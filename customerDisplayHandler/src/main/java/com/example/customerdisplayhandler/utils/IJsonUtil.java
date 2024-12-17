@@ -1,4 +1,4 @@
-package com.example.customerdisplayhandler.core.interfaces;
+package com.example.customerdisplayhandler.utils;
 
 public interface IJsonUtil {
     <T>T toObj(String jsonString, Class<T> classOfObj);

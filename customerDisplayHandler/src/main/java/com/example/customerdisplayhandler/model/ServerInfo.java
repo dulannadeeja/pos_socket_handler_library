@@ -1,8 +1,9 @@
 package com.example.customerdisplayhandler.model;
 
+import java.io.Serializable;
 import java.util.UUID;
 
-public class ServerInfo {
+public class ServerInfo implements Serializable {
     private String serverID;
     private String serverIpAddress;
     private String serverDeviceName;
@@ -23,5 +24,17 @@ public class ServerInfo {
 
     public String getServerDeviceName() {
         return serverDeviceName;
+    }
+
+    public void setServerID(String serverID) {
+        this.serverID = serverID;
+    }
+
+    public void setServerIpAddress(String serverIpAddress) {
+        this.serverIpAddress = serverIpAddress;
+    }
+
+    public void setServerDeviceName(String serverDeviceName) {
+        this.serverDeviceName = serverDeviceName;
     }
 }

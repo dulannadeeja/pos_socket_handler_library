@@ -3,14 +3,14 @@ package com.example.customerdisplayhandler.helpers;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-public class SharedPrefManagerImpl implements ISharedPrefManager{
+public class SharedPrefManagerImpl implements SharedPrefManager {
     private static final String PREF_NAME = "app_preferences";
     private static SharedPrefManagerImpl instance;
     private final SharedPreferences sharedPreferences;
     private final SharedPreferences.Editor editor;
 
     // Private constructor to enforce Singleton pattern
-    private SharedPrefManagerImpl(Context context) {
+    public SharedPrefManagerImpl(Context context) {
         sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         editor = sharedPreferences.edit();
     }

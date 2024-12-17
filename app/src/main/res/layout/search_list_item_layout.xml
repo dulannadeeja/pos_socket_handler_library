@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    >
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/customer_display_icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/customer_display_icon_background"
+            android:padding="12dp"
+            android:src="@drawable/tablet"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <LinearLayout
+            android:layout_marginStart="10dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/customer_display_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="samsung s10 plus"
+                android:textColor="@color/textPrimaryColor"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/customer_display_ip_address"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Unreachable" />
+            <View
+                android:layout_marginTop="5dp"
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:background="@color/dividerColor" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

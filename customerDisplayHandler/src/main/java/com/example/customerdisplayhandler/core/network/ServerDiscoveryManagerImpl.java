@@ -6,28 +6,16 @@ import android.util.Pair;
 import com.example.customerdisplayhandler.model.ServerInfo;
 import com.example.customerdisplayhandler.model.SocketMessageBase;
 import com.example.customerdisplayhandler.utils.SocketConfigConstants;
-import com.example.customerdisplayhandler.core.callbacks.OnConnectToServerCompleted;
-import com.example.customerdisplayhandler.core.callbacks.OnSearchServerCompleted;
-import com.example.customerdisplayhandler.core.interfaces.DataObserver;
 import com.example.customerdisplayhandler.core.interfaces.IConnectedServerManager;
-import com.example.customerdisplayhandler.core.interfaces.IJsonUtil;
+import com.example.customerdisplayhandler.utils.IJsonUtil;
 import com.example.customerdisplayhandler.core.interfaces.IServerDiscoveryManager;
 import com.example.customerdisplayhandler.core.interfaces.ISocketConnectionManager;
-import com.example.customerdisplayhandler.core.interfaces.ISocketDataSource;
 
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import io.reactivex.rxjava3.core.BackpressureStrategy;
-import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
@@ -38,7 +26,6 @@ public class ServerDiscoveryManagerImpl implements IServerDiscoveryManager {
     private final ISocketConnectionManager socketConnectionManager;
     private final IConnectedServerManager connectedServerManager;
     private final IJsonUtil jsonUtil;
-    private CompositeDisposable compositeDisposable = new CompositeDisposable();
 
     public ServerDiscoveryManagerImpl(ISocketConnectionManager socketConnectionManager, IConnectedServerManager connectedServerManager, IJsonUtil jsonUtil) {
         this.socketConnectionManager = socketConnectionManager;
@@ -48,54 +35,50 @@ public class ServerDiscoveryManagerImpl implements IServerDiscoveryManager {
 
     @Override
     public Flowable<Pair<ServerInfo, Socket>> searchAvailableServersInNetwork(String localIPAddress, int serverPort) {
-        return Flowable.<Pair<ServerInfo, Socket>>create(emitter -> {
-                    try {
-                        String[] ipParts = localIPAddress.split("\\.");
-                        String baseIP = ipParts[0] + "." + ipParts[1] + "." + ipParts[2] + ".";
-                        // TODO: Remove hardcoded IP address, use the baseIP instead
-                        baseIP = "10.30.100.";
+        return Flowable.range(0, 254) // Create a range of numbers from 0 to 255
+                .parallel() // Parallelize the flowable stream
+                .runOn(Schedulers.io()) // Assign each task to an IO thread
+                .map(i -> baseIP(localIPAddress) + i) // Generate the IP address
+                .filter(ip -> !ip.equals(localIPAddress) && !isAlreadyConnected(ip)) // Filter invalid or connected IPs
+                .flatMap(ip -> inspectIP(ip, serverPort)
+                        .doOnSuccess(pair -> {
+                            connectedServerManager.removeUnknownSocket(pair.first.getServerID());
+                            connectedServerManager.addConnectedServer(pair.first, pair.second);
+                        })
+                        .toFlowable()
+                ) // Inspect each IP
+                .sequential() // Combine results back into a single flowable
+                .timeout(SocketConfigConstants.CONNECTION_REQUEST_TIMEOUT, TimeUnit.MILLISECONDS) // Set a timeout of 5 seconds
+                .doOnSubscribe(disposable -> Log.i(TAG, "Started scanning the network"))
+                .doOnComplete(() -> Log.i(TAG, "Completed scanning the network"));
+    }
 
-                        // Use a CountDownLatch to wait for all IP checks to finish
-                        CountDownLatch latch = new CountDownLatch(256);
+    private String baseIP(String localIPAddress) {
+        String[] ipParts = localIPAddress.split("\\.");
+//        return ipParts[0] + "." + ipParts[1] + "." + ipParts[2] + ".";
+        return "10.30.100.";
+    }
 
-
-                        for (int i = 0; i < 256; i++) {
-                            String ip = baseIP + i;
-                            if (!ip.equals(localIPAddress)) {
-                                compositeDisposable.add(
-                                        inspectIP(ip, serverPort)
-                                                .doOnTerminate(() -> latch.countDown())
-                                                .subscribe(pair -> {
-                                                    emitter.onNext(pair);
-                                                }, error -> {
-                                                    // ignore errors
-                                                })
-                                );
-                            }
-                        }
-
-                        // Wait for all IP checks to finish
-                        latch.await();
-                        emitter.onComplete();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error searching for servers in network: " + e.getMessage());
-                    }
-                }, BackpressureStrategy.BUFFER)
-                .doOnSubscribe(disposable -> Log.i(TAG, "Searching for servers in network"))
-                .doOnComplete(() -> Log.i(TAG, "Search for servers in network completed"))
-                .subscribeOn(Schedulers.io());
+    private boolean isAlreadyConnected(String ip) {
+        List<String> connectedServerIPs = new java.util.ArrayList<>();
+        connectedServerManager.getDiscoveredServers().forEach(connectedServer -> {
+            connectedServerIPs.add(connectedServer.first.getServerIpAddress());
+        });
+        connectedServerManager.getUnknownSockets().forEach(unknownSocket -> {
+            connectedServerIPs.add(unknownSocket.second.getInetAddress().getHostAddress());
+        });
+        return connectedServerIPs.contains(ip);
     }
 
     private Single<Pair<ServerInfo, Socket>> inspectIP(String ip, int serverPort) {
         return socketConnectionManager.connectToServer(ip, serverPort)
                 .flatMap(socket -> {
-                    String serverID = UUID.randomUUID().toString();
-                    ServerInfo serverInfo = new ServerInfo(serverID, ip, "Unknown");
-                    connectedServerManager.addConnectedServer(socket, serverInfo);
+                    String socketId = UUID.randomUUID().toString();
+                    ServerInfo serverInfo = new ServerInfo(socketId, socket.getInetAddress().getHostAddress(), "Unknown");
+                    connectedServerManager.addUnknownSocket(socketId, socket);
                     return Single.just(new Pair<>(serverInfo, socket));
                 }).flatMap(pair -> waitingForHandshakeFromServer(pair.first.getServerID())
                         .map(serverInfo -> new Pair<>(serverInfo, pair.second)))
-                .timeout(SocketConfigConstants.CONNECTION_REQUEST_TIMEOUT, TimeUnit.MILLISECONDS) // Set a timeout for the handshake
                 .doOnSuccess(pair -> Log.i(TAG, "IP inspected: " + ip))
                 .subscribeOn(Schedulers.io());
     }
