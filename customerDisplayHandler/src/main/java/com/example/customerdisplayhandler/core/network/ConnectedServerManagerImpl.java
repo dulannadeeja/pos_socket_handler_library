@@ -18,6 +18,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.Socket;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
@@ -69,54 +70,29 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
         }).subscribeOn(Schedulers.io()); // Run the task on an IO thread
     }
 
-    @Override
-    public void startPairingServer(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnPairingServerListener onPairingServerListener) {
-        if (socket == null || !socket.isConnected()) {
-            onPairingServerListener.onPairingServerFailed("Connection error occurred while pairing with customer display.");
-            Log.e(TAG, "Socket is null or not connected.");
-            return;
+
+
+    private boolean isValidSocketMessage(SocketMessageBase socketMessageBase) {
+        return socketMessageBase != null &&
+                socketMessageBase.getCommand() != null &&
+                !socketMessageBase.getCommand().isEmpty() &&
+                socketMessageBase.getData() != null &&
+                socketMessageBase.getSenderId() != null &&
+                socketMessageBase.getReceiverId() != null;
+    }
+
+    private ConnectionApproval parseConnectionApproval(Object data) {
+        try {
+            String jsonData = jsonUtil.toJson(data);
+            return jsonUtil.toObj(jsonData, ConnectionApproval.class);
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing connection approval data: " + e.getMessage(), e);
+            return null;
         }
+    }
 
-        onPairingServerListener.onPairingServerStarted();
-
-        SocketMessageBase socketMessageBase = new SocketMessageBase(
-                clientInfo,
-                NetworkConstants.REQUEST_CONNECTION_APPROVAL,
-                serviceInfo.getServerId(),
-                clientInfo.getClientID()
-        );
-
-        String message = jsonUtil.toJson(socketMessageBase);
-
-        Disposable disposable = sendMessageToServer(serviceInfo.getServerId(), socket, message)
-                .doOnComplete(onPairingServerListener::onConnectionRequestSent)
-                .andThen(catchConnectionApprovalResponse(serviceInfo))
-                .subscribe(
-                        messageFromServer -> {
-                            String response = processConnectionApproval(messageFromServer);
-                            switch (response) {
-                                case "approved":
-                                    onPairingServerListener.onConnectionRequestApproved();
-                                    break;
-                                case "rejected":
-                                    onPairingServerListener.onConnectionRequestRejected();
-                                    break;
-                                default:
-                                    onPairingServerListener.onPairingServerFailed(
-                                            "Error occurred while approving connection request from customer display."
-                                    );
-                                    break;
-                            }
-                        },
-                        error -> {
-                            onPairingServerListener.onPairingServerFailed(
-                                    "Unexpected error occurred while pairing with customer display."
-                            );
-                            Log.e(TAG, "Error pairing with customer display: " + error.getMessage(), error);
-                        }
-                );
-
-        compositeDisposable.add(disposable);
+    public BehaviorSubject<Pair<String, String>> getServerMessageSubject() {
+        return serverMessageSubject;
     }
 
     @Override
@@ -124,11 +100,55 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
         compositeDisposable.clear();
     }
 
-    private Single<String> catchConnectionApprovalResponse(ServiceInfo serviceInfo) {
-        return serverMessageSubject
-                .filter(pair -> pair.first.equals(serviceInfo.getServerId())) // Filter by server ID
-                .map((Pair<String, String> pair) -> pair.second)
-                .singleOrError();
+    @Override
+    public void startPairingServer(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnPairingServerListener onPairingServerListener) {
+        onPairingServerListener.onPairingServerStarted();
+        SocketMessageBase socketMessageBase = new SocketMessageBase(clientInfo, NetworkConstants.REQUEST_CONNECTION_APPROVAL, serviceInfo.getServerId(), clientInfo.getClientID());
+        String message = jsonUtil.toJson(socketMessageBase);
+        Disposable disposable = sendMessageToServer(serviceInfo.getServerId(), socket, message)
+                .doOnComplete(onPairingServerListener::onConnectionRequestSent)
+                .andThen(catchConnectionApprovalResponse(serviceInfo))
+                .subscribe(
+                        isApproved -> {
+                            if ("approved".equals(isApproved)) {
+                                onPairingServerListener.onConnectionRequestApproved();
+                            } else {
+                                onPairingServerListener.onConnectionRequestRejected();
+                            }
+                        },
+                        error -> {
+                            onPairingServerListener.onPairingServerFailed(error.getMessage());
+                            Log.e(TAG, "Error starting pairing server: " + error.getMessage());
+                        }
+                );
+        compositeDisposable.add(disposable);
+    }
+
+    private Single<String> catchConnectionApprovalResponse(ServiceInfo serverInfo) {
+        return Single.<String>create(emitter -> {
+            Disposable disposable = serverMessageSubject
+//                    .filter(pair -> pair.first.equals(serverInfo.getServerID())) // Filter by server ID
+                    .map(pair -> pair.second) // Extract the message
+                    .subscribe(
+                            message -> {
+                                try {
+                                    // Final check to approve the connection
+                                    String isApproved = processConnectionApproval(message);
+                                    emitter.onSuccess(isApproved);
+                                } catch (Exception e) {
+                                    emitter.onError(e);
+                                }
+                            },
+                            throwable -> {
+                                if (!emitter.isDisposed()) {
+                                    emitter.onError(throwable); // Emit an error if timed out or failed
+                                }
+                            }
+                    );
+
+            // Clean up the disposable when the emitter is disposed
+            emitter.setDisposable(disposable);
+        }).subscribeOn(Schedulers.io());
     }
 
     private String processConnectionApproval(String message) {
@@ -161,29 +181,5 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
             Log.e(TAG, "Error processing connection approval: " + e.getMessage(), e);
             return "invalid";
         }
-    }
-
-    private boolean isValidSocketMessage(SocketMessageBase socketMessageBase) {
-        return socketMessageBase != null &&
-                socketMessageBase.getCommand() != null &&
-                !socketMessageBase.getCommand().isEmpty() &&
-                socketMessageBase.getData() != null &&
-                socketMessageBase.getSenderId() != null &&
-                socketMessageBase.getReceiverId() != null;
-    }
-
-    private ConnectionApproval parseConnectionApproval(Object data) {
-        try {
-            String jsonData = jsonUtil.toJson(data);
-            return jsonUtil.toObj(jsonData, ConnectionApproval.class);
-        } catch (Exception e) {
-            Log.e(TAG, "Error parsing connection approval data: " + e.getMessage(), e);
-            return null;
-        }
-    }
-
-
-    public BehaviorSubject<Pair<String, String>> getServerMessageSubject() {
-        return serverMessageSubject;
     }
 }

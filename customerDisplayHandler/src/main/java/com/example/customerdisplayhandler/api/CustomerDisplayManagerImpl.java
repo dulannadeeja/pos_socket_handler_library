@@ -23,7 +23,10 @@ import com.example.customerdisplayhandler.helpers.SharedPrefManager;
 import com.example.customerdisplayhandler.helpers.SharedPrefManagerImpl;
 import com.example.customerdisplayhandler.utils.JsonUtilImpl;
 
+import java.net.Socket;
+
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
+import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -77,6 +80,11 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     }
 
     @Override
+    public Completable startListeningForServerMessages(String serverId, Socket socket) {
+        return connectedServerManager.startListening(serverId, socket);
+    }
+
+    @Override
     public void startPairingServer(ServiceInfo serviceInfo, IConnectedServerManager.OnPairingServerListener listener) {
         compositeDisposable.add(
                 socketConnectionManager.connectToServer(serviceInfo.getIpAddress(), serverPort)
@@ -84,7 +92,12 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe((pair) -> {
-                            connectedServerManager.startPairingServer(serviceInfo,pair.first, pair.second, listener);
+                            startListeningForServerMessages(serviceInfo.getServerId(), pair.first).subscribe(() -> {
+                                Log.d("CustomerDisplayManager", "Listening for messages from server: " + pair.first.getInetAddress().getHostAddress());
+                            }, throwable -> {
+                                Log.e("CustomerDisplayManager", "Error listening for messages: " + throwable.getMessage());
+                            });
+                            connectedServerManager.startPairingServer(serviceInfo, pair.first, pair.second, listener);
                         }, throwable -> {
                             Log.e("CustomerDisplayManager", "Error getting client info: " + throwable.getMessage());
                             listener.onPairingServerFailed(throwable.getMessage());
