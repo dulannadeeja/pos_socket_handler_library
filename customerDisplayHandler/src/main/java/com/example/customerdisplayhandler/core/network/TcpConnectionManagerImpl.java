@@ -2,8 +2,7 @@ package com.example.customerdisplayhandler.core.network;
 
 import android.util.Log;
 
-import com.example.customerdisplayhandler.core.callbacks.OnConnectToServerCompleted;
-import com.example.customerdisplayhandler.core.interfaces.ISocketConnectionManager;
+import com.example.customerdisplayhandler.core.interfaces.ITcpConnectionManager;
 
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
@@ -12,11 +11,11 @@ import java.util.concurrent.Executors;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 
-public class SocketConnectionManagerImpl implements ISocketConnectionManager {
-    private static final String TAG = "ClientSocketManager";
+public class TcpConnectionManagerImpl implements ITcpConnectionManager {
+    private static final String TAG = TcpConnectionManagerImpl.class.getSimpleName();
     private final ExecutorService executorService;
 
-    public SocketConnectionManagerImpl() {
+    public TcpConnectionManagerImpl() {
         this.executorService = Executors.newCachedThreadPool();
     }
 
@@ -30,6 +29,10 @@ public class SocketConnectionManagerImpl implements ISocketConnectionManager {
                         emitter.onSuccess(socket);
                     }catch (Exception e) {
                         Log.e(TAG, "Error connecting to server: " + e.getMessage());
+                        if (!emitter.isDisposed()) {
+                            Exception newException = new Exception("Error occurred while connecting to customer display");
+                            emitter.onError(newException);
+                        }
                     }
                 })
                 .subscribeOn(Schedulers.io()) // Perform the connection on an IO thread

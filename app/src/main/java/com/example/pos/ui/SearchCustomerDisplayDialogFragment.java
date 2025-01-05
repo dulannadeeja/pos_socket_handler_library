@@ -13,20 +13,22 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ProgressBar;
 
-import com.example.customerdisplayhandler.api.CustomerDisplayManager;
+import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.api.CustomerDisplayManagerImpl;
-import com.example.customerdisplayhandler.model.ServerInfo;
-import com.example.customerdisplayhandler.utils.SocketConfigConstants;
+import com.example.customerdisplayhandler.core.interfaces.INetworkServiceDiscoveryManager;
+import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.pos.App;
 import com.example.pos.R;
 import com.example.pos.adapters.SearchListAdapter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
 public class SearchCustomerDisplayDialogFragment extends DialogFragment {
     public static final String TAG = SearchCustomerDisplayDialogFragment.class.getSimpleName();
-    private CustomerDisplayManager customerDisplayManager;
+    private ICustomerDisplayManager customerDisplayManager;
+    private final List<ServiceInfo> searchResults = new ArrayList<>();
 
     public SearchCustomerDisplayDialogFragment() {
         // Required empty public constructor
@@ -62,12 +64,12 @@ public class SearchCustomerDisplayDialogFragment extends DialogFragment {
             Fragment targetFragment = requireActivity().getSupportFragmentManager()
                     .findFragmentByTag(AddCustomerDisplayFragment.TAG);
 
-            Log.d(TAG, "Selected customer display: " + serverInfo.getServerID());
+            Log.d(TAG, "Selected customer display: " + serverInfo.getDeviceName());
 
             if (targetFragment instanceof AddCustomerDisplayFragment) {
                 Log.d(TAG, "Updating selected customer display");
                 ((AddCustomerDisplayFragment) targetFragment).updateSelectedCustomerDisplay(serverInfo);
-            }else{
+            } else {
                 Log.d(TAG, "Target fragment is not an instance of AddCustomerDisplayFragment");
             }
             dismiss();
@@ -76,31 +78,43 @@ public class SearchCustomerDisplayDialogFragment extends DialogFragment {
         searchResultsRecyclerView.setLayoutManager(layoutManager);
         searchResultsRecyclerView.setAdapter(searchListAdapter);
 
-        customerDisplayManager = CustomerDisplayManagerImpl.newInstance(getContext(), SocketConfigConstants.DEFAULT_SERVER_PORT);
-        customerDisplayManager.startSearchForCustomerDisplays(new CustomerDisplayManager.SearchListener() {
+        App app = (App) requireActivity().getApplication();
+        customerDisplayManager = app.getCustomerDisplayManager();
+        customerDisplayManager.startSearchForCustomerDisplays(new INetworkServiceDiscoveryManager.SearchListener() {
             @Override
             public void onSearchStarted() {
-                searchProgressBar.setVisibility(View.VISIBLE);
-                List<ServerInfo> searchResults = customerDisplayManager.getAvailableCustomerDisplays();
-                searchListAdapter.updateSearchResults(searchResults);
+                requireActivity().runOnUiThread(() -> {
+                    searchProgressBar.setVisibility(View.VISIBLE);
+                    searchResults.clear();
+                    searchListAdapter.updateSearchResults(searchResults);
+                });
             }
 
             @Override
             public void onSearchCompleted() {
-                searchProgressBar.setVisibility(View.INVISIBLE);
+                if (isAdded()) {
+                    requireActivity().runOnUiThread(() -> {
+                        searchProgressBar.setVisibility(View.INVISIBLE);
+                    });
+                }
             }
 
             @Override
             public void onSearchFailed(String errorMessage) {
-                searchProgressBar.setVisibility(View.INVISIBLE);
+                requireActivity().runOnUiThread(() -> {
+                    searchProgressBar.setVisibility(View.INVISIBLE);
+                });
             }
 
             @Override
-            public void onCustomerDisplayFound(ServerInfo serverInfo) {
+            public void onServiceFound(ServiceInfo serviceInfo) {
                 requireActivity().runOnUiThread(() -> {
-                    Log.d(TAG, "Customer display found: " + serverInfo.getServerID());
-                    List<ServerInfo> searchResults = customerDisplayManager.getAvailableCustomerDisplays();
-                    searchListAdapter.updateSearchResults(searchResults);
+                    // Check if the service is already in the list
+                    boolean isAlreadyInList = searchResults.stream().anyMatch(existingServiceInfo -> existingServiceInfo.getServerId().equals(serviceInfo.getServerId()));
+                    if (!isAlreadyInList) {
+                        searchResults.add(serviceInfo);
+                        searchListAdapter.updateSearchResults(searchResults);
+                    }
                 });
             }
         });

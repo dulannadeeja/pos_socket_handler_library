@@ -6,9 +6,7 @@ import com.example.customerdisplayhandler.utils.IJsonUtil;
 import com.example.customerdisplayhandler.helpers.SharedPrefManager;
 import com.example.customerdisplayhandler.model.ClientInfo;
 import com.example.customerdisplayhandler.utils.SharedPrefLabels;
-
 import java.util.UUID;
-
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 
@@ -72,7 +70,7 @@ public class ClientInfoManagerImpl implements ClientInfoManager {
             try {
                 String clientInfoString = sharedPrefManager.getString(SharedPrefLabels.CLIENT_INFO_LABEL, "");
                 if (clientInfoString.isEmpty()) {
-                    emitter.onError(new Exception("Client info not found"));
+                    emitter.onError(new Exception("Error occurred while retrieving POS info"));
                 } else {
                     ClientInfo clientInfo = jsonUtil.toObj(clientInfoString, ClientInfo.class);
                     emitter.onSuccess(clientInfo);
@@ -89,7 +87,8 @@ public class ClientInfoManagerImpl implements ClientInfoManager {
                 sharedPrefManager.putString(SharedPrefLabels.CLIENT_INFO_LABEL, clientInfoString);
                 emitter.onComplete();
             } catch (Exception e) {
-                emitter.onError(e);
+                Exception newException = new Exception("Error occurred while saving POS info");
+                emitter.onError(newException);
             }
         });
     }

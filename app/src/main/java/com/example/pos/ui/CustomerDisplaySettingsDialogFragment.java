@@ -12,7 +12,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
 
-import com.example.customerdisplayhandler.api.CustomerDisplayManager;
+import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.model.ServerInfo;
 import com.example.customerdisplayhandler.ui.UiProvider;
 import com.example.customerdisplayhandler.ui.callbacks.AddNewDisplayFabListener;
@@ -20,6 +20,7 @@ import com.example.pos.App;
 import com.example.pos.R;
 import com.example.pos.adapters.ConnectedCustomerDisplayAdapter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
@@ -29,7 +30,7 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
     private RecyclerView connectedCustomerDisplaysRecyclerView;
     private LinearLayout noConnectedCustomerDisplaysLayout;
     private ConnectedCustomerDisplayAdapter connectedCustomerDisplayAdapter;
-    private CustomerDisplayManager customerDisplayManager;
+    private ICustomerDisplayManager ICustomerDisplayManager;
 
     public CustomerDisplaySettingsDialogFragment() {
         // Required empty public constructor
@@ -63,7 +64,7 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
         super.onViewCreated(view, savedInstanceState);
 
         App app = (App) requireActivity().getApplication();
-        customerDisplayManager = app.getCustomerDisplayManager();
+        ICustomerDisplayManager = app.getCustomerDisplayManager();
 
         connectedCustomerDisplaysRecyclerView = view.findViewById(com.example.customerdisplayhandler.R.id.connected_displays_recycler_view);
         noConnectedCustomerDisplaysLayout = view.findViewById(com.example.customerdisplayhandler.R.id.no_connected_displays_layout);
@@ -75,7 +76,8 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
         connectedCustomerDisplaysRecyclerView.setLayoutManager(linearLayoutManager);
         connectedCustomerDisplaysRecyclerView.setAdapter(connectedCustomerDisplayAdapter);
 
-        List<ServerInfo> pairedCustomerDisplays = customerDisplayManager.getPairedCustomerDisplays();
+        // TODO: Get paired customer displays
+        List<ServerInfo> pairedCustomerDisplays = new ArrayList<>();
         if (pairedCustomerDisplays.isEmpty()) {
             connectedCustomerDisplaysRecyclerView.setVisibility(View.GONE);
             noConnectedCustomerDisplaysLayout.setVisibility(View.VISIBLE);
@@ -88,7 +90,8 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
     }
 
     public void refreshConnectedCustomerDisplays() {
-        List<ServerInfo> pairedCustomerDisplays = customerDisplayManager.getPairedCustomerDisplays();
+        // TODO: Implement this method
+        List<ServerInfo> pairedCustomerDisplays = new ArrayList<>();
         if (pairedCustomerDisplays.isEmpty()) {
             connectedCustomerDisplaysRecyclerView.setVisibility(View.GONE);
             noConnectedCustomerDisplaysLayout.setVisibility(View.VISIBLE);

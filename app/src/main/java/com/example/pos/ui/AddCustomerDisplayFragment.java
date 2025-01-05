@@ -13,6 +13,7 @@ import android.view.WindowManager;
 import android.widget.Button;
 
 import com.example.customerdisplayhandler.model.ServerInfo;
+import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.ui.UiProvider;
 import com.example.pos.R;
 import com.google.android.material.button.MaterialButton;
@@ -25,7 +26,7 @@ public class AddCustomerDisplayFragment extends DialogFragment {
     public static final String TAG = AddCustomerDisplayFragment.class.getSimpleName();
     private TextInputEditText nameEditText;
     private TextInputEditText ipAddressEditText;
-    private ServerInfo selectedServerInfo;
+    private ServiceInfo selectedServiceInfo;
     private MaterialButton pairButton;
 
     public AddCustomerDisplayFragment() {
@@ -65,20 +66,21 @@ public class AddCustomerDisplayFragment extends DialogFragment {
         pairButton = view.findViewById(R.id.pair_customer_display_button);
 
         pairButton.setOnClickListener(v -> {
-            if (selectedServerInfo != null) {
-                Log.d(TAG, "Pairing customer display: " + selectedServerInfo.getServerID());
-                PairingFragment pairingFragment = PairingFragment.newInstance(selectedServerInfo);
+            if (selectedServiceInfo != null) {
+                Log.d(TAG, "Pairing customer display: " + selectedServiceInfo.getServerId());
+                //TODO: Pair customer display
+                PairingFragment pairingFragment = PairingFragment.newInstance(selectedServiceInfo);
                 pairingFragment.show(getChildFragmentManager(), PairingFragment.TAG);
             }
         });
 
     }
 
-    public void updateSelectedCustomerDisplay(ServerInfo serverInfo) {
-        selectedServerInfo = serverInfo;
-        Log.d(TAG, "Updating customer display: " + serverInfo.getServerID());
-        nameEditText.setText(serverInfo.getServerDeviceName());
-        ipAddressEditText.setText(serverInfo.getServerIpAddress());
+    public void updateSelectedCustomerDisplay(ServiceInfo serviceInfo) {
+        selectedServiceInfo = serviceInfo;
+        Log.d(TAG, "Updating customer display: " + serviceInfo.getServerId());
+        nameEditText.setText(serviceInfo.getDeviceName());
+        ipAddressEditText.setText(serviceInfo.getIpAddress());
     }
 
     @Override

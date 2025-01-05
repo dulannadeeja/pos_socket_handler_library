@@ -5,19 +5,16 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
-import com.example.customerdisplayhandler.model.ServerInfo;
+import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.pos.R;
-
 import java.util.ArrayList;
 import java.util.List;
 
 public class SearchListAdapter extends RecyclerView.Adapter<SearchListAdapter.ViewHolder> {
     private static final String TAG = SearchListAdapter.class.getSimpleName();
-    private final List<ServerInfo> searchResults;
+    private final List<ServiceInfo> searchResults;
     private final OnItemClickListener itemClickListener;
 
     // Constructor
@@ -26,7 +23,7 @@ public class SearchListAdapter extends RecyclerView.Adapter<SearchListAdapter.Vi
         this.itemClickListener = itemClickListener;
     }
 
-    public void updateSearchResults(List<ServerInfo> searchResults) {
+    public void updateSearchResults(List<ServiceInfo> searchResults) {
         try {
             Log.d(TAG, "Updating search results" + searchResults.size());
             this.searchResults.clear();
@@ -52,11 +49,11 @@ public class SearchListAdapter extends RecyclerView.Adapter<SearchListAdapter.Vi
             this.itemView = itemView;
         }
 
-        public void bind(ServerInfo serverInfo) {
-            Log.d(TAG, "Binding server info: " + serverInfo.getServerDeviceName());
-            customerDisplayName.setText(serverInfo.getServerDeviceName());
-            customerDisplayIpAddress.setText(serverInfo.getServerIpAddress());
-            itemView.setOnClickListener(v -> itemClickListener.onItemClick(serverInfo));
+        public void bind(ServiceInfo serviceInfo) {
+            Log.d(TAG, "Binding server info: " + serviceInfo.getDeviceName());
+            customerDisplayName.setText(serviceInfo.getDeviceName());
+            customerDisplayIpAddress.setText(serviceInfo.getIpAddress());
+            itemView.setOnClickListener(v -> itemClickListener.onItemClick(serviceInfo));
         }
     }
 
@@ -80,6 +77,6 @@ public class SearchListAdapter extends RecyclerView.Adapter<SearchListAdapter.Vi
 
     // Interface for handling item clicks
     public interface OnItemClickListener {
-        void onItemClick(ServerInfo serverInfo);
+        void onItemClick(ServiceInfo serviceInfo);
     }
 }

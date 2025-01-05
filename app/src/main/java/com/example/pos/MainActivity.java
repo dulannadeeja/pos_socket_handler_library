@@ -7,13 +7,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-import com.example.customerdisplayhandler.api.CustomerDisplayManager;
-import com.example.customerdisplayhandler.core.network.NetworkDiscovery;
+import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
+import com.example.customerdisplayhandler.core.network.NetworkServiceDiscoveryManagerImpl;
 import com.example.pos.ui.AddCustomerDisplayFragment;
 import com.example.pos.ui.CustomerDisplaySettingsDialogFragment;
 
 public class MainActivity extends AppCompatActivity {
-    private CustomerDisplayManager customerDisplayManager;
+    private ICustomerDisplayManager ICustomerDisplayManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,14 +27,13 @@ public class MainActivity extends AppCompatActivity {
         });
 
         App app = (App) getApplication();
-        customerDisplayManager = app.getCustomerDisplayManager();
+        ICustomerDisplayManager = app.getCustomerDisplayManager();
 
         Button customerDisplayButton = findViewById(R.id.go_to_customer_display_settings);
-        NetworkDiscovery networkDiscovery = new NetworkDiscovery(getApplicationContext());
+        NetworkServiceDiscoveryManagerImpl networkServiceDiscoveryManagerImpl = new NetworkServiceDiscoveryManagerImpl(getApplicationContext());
         customerDisplayButton.setOnClickListener(v -> {
             showCustomerDisplaySettingsFragment();
         });
-
     }
 
     private void showCustomerDisplaySettingsFragment() {

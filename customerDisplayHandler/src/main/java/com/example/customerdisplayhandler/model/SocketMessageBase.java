@@ -1,7 +1,5 @@
 package com.example.customerdisplayhandler.model;
 
-import java.util.UUID;
-
 public class SocketMessageBase {
     private Object data;
     private String command;
