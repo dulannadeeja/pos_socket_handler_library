@@ -5,7 +5,8 @@ import android.os.Bundle;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.FragmentManager;
 
-import android.os.CountDownTimer;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,9 +14,10 @@ import android.widget.TextView;
 
 import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.core.interfaces.IConnectedServerManager;
-import com.example.customerdisplayhandler.model.ServerInfo;
+import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.pos.App;
+import com.example.pos.MainActivity;
 import com.example.pos.R;
 
 
@@ -24,7 +26,12 @@ public class PairingFragment extends DialogFragment {
     public static final String TAG = PairingFragment.class.getSimpleName();
     public static final String ARG_SERVICE_INFO = "serviceInfo";
     private ServiceInfo serviceInfo;
-    private ICustomerDisplayManager ICustomerDisplayManager;
+    private HandlerThread handlerThread;
+    private Handler backgroundHandler;
+    private Handler uiHandler;
+    private ICustomerDisplayManager customerDisplayManager;
+    private TextView pairingStatusTextView;
+    private MainActivity mainActivity;
     public static PairingFragment newInstance(ServiceInfo serviceInfo) {
         PairingFragment fragment = new PairingFragment();
         Bundle args = new Bundle();
@@ -51,12 +58,26 @@ public class PairingFragment extends DialogFragment {
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+
         App app = (App) requireActivity().getApplication();
-        ICustomerDisplayManager = app.getCustomerDisplayManager();
+        customerDisplayManager = app.getCustomerDisplayManager();
 
-        TextView pairingStatusTextView = view.findViewById(R.id.pairing_status_tv);
+        mainActivity = (MainActivity) requireActivity();
 
-        ICustomerDisplayManager.startPairingServer(serviceInfo, new IConnectedServerManager.OnPairingServerListener() {
+        // Initialize the HandlerThread for background tasks
+        handlerThread = new HandlerThread("PairingBackgroundThread");
+        handlerThread.start();
+        backgroundHandler = new Handler(handlerThread.getLooper());
+
+        // Handler for updating the UI
+        uiHandler = new Handler(requireActivity().getMainLooper());
+
+        pairingStatusTextView = view.findViewById(R.id.pairing_status_tv);
+        registerPairingServerCallbacks();
+    }
+
+    private void registerPairingServerCallbacks(){
+        customerDisplayManager.startPairingServer(serviceInfo, new IConnectedServerManager.OnPairingServerListener() {
             @Override
             public void onPairingServerStarted() {
                 requireActivity().runOnUiThread(() -> {
@@ -66,57 +87,82 @@ public class PairingFragment extends DialogFragment {
 
             @Override
             public void onConnectionRequestSent() {
-                requireActivity().runOnUiThread(() -> {
-                    // make some delay to show the message without freezing the UI
-                    CountDownTimer countDownTimer = new CountDownTimer(2000, 1000) {
-                        @Override
-                        public void onTick(long millisUntilFinished) {
-                        }
-
-                        @Override
-                        public void onFinish() {
-                            pairingStatusTextView.setText("Connection request sent, waiting for approval...");
-                        }
-                    };
-                    countDownTimer.start();
+                runWithDelay(2000, () -> {
+                    uiHandler.post(() -> {
+                        pairingStatusTextView.setText("Connection request sent, waiting for approval...");
+                    });
                 });
             }
 
             @Override
-            public void onConnectionRequestApproved() {
-                requireActivity().runOnUiThread(() -> {
+            public void onConnectionRequestApproved(ServiceInfo serviceInfo) {
+                uiHandler.post(() -> {
                     pairingStatusTextView.setText("Connection approval received from customer display...");
-                    CountDownTimer countDownTimer = new CountDownTimer(2000, 1000) {
-                        @Override
-                        public void onTick(long millisUntilFinished) {
-                        }
-
-                        @Override
-                        public void onFinish() {
-                            FragmentManager fragmentManager = requireActivity().getSupportFragmentManager();
-                            AddCustomerDisplayFragment addCustomerDisplayFragment = (AddCustomerDisplayFragment) fragmentManager.findFragmentByTag(AddCustomerDisplayFragment.TAG);
-                            addCustomerDisplayFragment.dismiss();
-                            CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = (CustomerDisplaySettingsDialogFragment) fragmentManager.findFragmentByTag(CustomerDisplaySettingsDialogFragment.TAG);
-                            customerDisplaySettingsDialogFragment.refreshConnectedCustomerDisplays();
-                            dismiss();
-                        }
-                    };
-                    countDownTimer.start();
+                });
+                runWithDelay(2000, () ->{
+                    onCustomerDisplayConnected(serviceInfo);
                 });
             }
 
             @Override
             public void onConnectionRequestRejected() {
-                requireActivity().runOnUiThread(() -> {
-                pairingStatusTextView.setText("Connection request rejected by customer display...");
+                uiHandler.post(() -> {
+                    pairingStatusTextView.setText("Connection request rejected by customer display...");
+                    pairingStatusTextView.setTextColor(requireActivity().getColor(R.color.errorColor));
                 });
             }
 
             @Override
             public void onPairingServerFailed(String message) {
-                requireActivity().runOnUiThread(() -> {
-                    pairingStatusTextView.setText(message);
+                if(isAdded()){
+                    requireActivity().runOnUiThread(() -> {
+                        pairingStatusTextView.setText(message);
+                        pairingStatusTextView.setTextColor(requireActivity().getColor(R.color.errorColor));
+                    });
+                }
+            }
+        });
+    }
+
+    private void onCustomerDisplayConnected(ServiceInfo serviceInfo){
+
+        FragmentManager fragmentManager = requireActivity().getSupportFragmentManager();
+        AddCustomerDisplayFragment addCustomerDisplayFragment = (AddCustomerDisplayFragment) fragmentManager.findFragmentByTag(AddCustomerDisplayFragment.TAG);
+        CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = (CustomerDisplaySettingsDialogFragment) fragmentManager.findFragmentByTag(CustomerDisplaySettingsDialogFragment.TAG);
+
+        customerDisplayManager.addConnectedDisplay(serviceInfo.getServerId(), serviceInfo.getDeviceName(), serviceInfo.getIpAddress(), new ICustomerDisplayManager.AddCustomerDisplayListener() {
+            @Override
+            public void onCustomerDisplayAdded(CustomerDisplay customerDisplay) {
+                uiHandler.post(()->{
+                    addCustomerDisplayFragment.dismiss();
+                    customerDisplaySettingsDialogFragment.refreshConnectedDisplays();
+                    dismiss();
+                    mainActivity.showToast(customerDisplay.getCustomerDisplayName() + " added successfully.");
                 });
+            }
+
+            @Override
+            public void onCustomerDisplayAddFailed(String errorMessage) {
+                uiHandler.post(()->{
+                    dismiss();
+                    mainActivity.showToast(errorMessage);
+                });
+            }
+        });
+    }
+
+    /**
+     * Runs a task with a specified delay on the background thread.
+     * @param delayMillis The delay in milliseconds.
+     * @param task The task to execute after the delay.
+     */
+    private void runWithDelay(long delayMillis, Runnable task) {
+        backgroundHandler.post(() -> {
+            try {
+                Thread.sleep(delayMillis);
+                task.run();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         });
     }
@@ -124,6 +170,6 @@ public class PairingFragment extends DialogFragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        ICustomerDisplayManager.stopPairingServer();
+        customerDisplayManager.stopPairingServer();
     }
 }

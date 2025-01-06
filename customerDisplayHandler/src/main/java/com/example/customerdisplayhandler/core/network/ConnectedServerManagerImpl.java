@@ -9,7 +9,6 @@ import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
 import com.example.customerdisplayhandler.model.ClientInfo;
 import com.example.customerdisplayhandler.model.ConnectionApproval;
-import com.example.customerdisplayhandler.model.ServerInfo;
 import com.example.customerdisplayhandler.model.SocketMessageBase;
 
 import java.io.DataInputStream;
@@ -17,11 +16,8 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.Socket;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.core.Completable;
-import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -70,29 +66,46 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
         }).subscribeOn(Schedulers.io()); // Run the task on an IO thread
     }
 
-
-
-    private boolean isValidSocketMessage(SocketMessageBase socketMessageBase) {
-        return socketMessageBase != null &&
-                socketMessageBase.getCommand() != null &&
-                !socketMessageBase.getCommand().isEmpty() &&
-                socketMessageBase.getData() != null &&
-                socketMessageBase.getSenderId() != null &&
-                socketMessageBase.getReceiverId() != null;
-    }
-
-    private ConnectionApproval parseConnectionApproval(Object data) {
-        try {
-            String jsonData = jsonUtil.toJson(data);
-            return jsonUtil.toObj(jsonData, ConnectionApproval.class);
-        } catch (Exception e) {
-            Log.e(TAG, "Error parsing connection approval data: " + e.getMessage(), e);
-            return null;
-        }
-    }
-
-    public BehaviorSubject<Pair<String, String>> getServerMessageSubject() {
-        return serverMessageSubject;
+    @Override
+    public void startPairingServer(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnPairingServerListener onPairingServerListener) {
+        onPairingServerListener.onPairingServerStarted();
+        SocketMessageBase socketMessageBase = new SocketMessageBase(clientInfo, NetworkConstants.REQUEST_CONNECTION_APPROVAL, serviceInfo.getServerId(), clientInfo.getClientID());
+        String message = jsonUtil.toJson(socketMessageBase);
+        Disposable disposable = sendMessageToServer(serviceInfo.getServerId(), socket, message)
+                .doOnComplete(onPairingServerListener::onConnectionRequestSent)
+                .subscribe(
+                        () -> {
+                            try (DataInputStream input = new DataInputStream(socket.getInputStream())) {
+                                String serverMessage;
+                                while ((serverMessage = input.readUTF()) != null) {
+                                    String approvalStatus = processConnectionApproval(serverMessage);
+                                    switch (approvalStatus) {
+                                        case "approved":
+                                            onPairingServerListener.onConnectionRequestApproved(serviceInfo);
+                                            break;
+                                        case "rejected":
+                                            onPairingServerListener.onConnectionRequestRejected();
+                                            break;
+                                        default:
+                                            Log.e(TAG, "invalid connection approval");
+                                            onPairingServerListener.onPairingServerFailed("Error occurred during connection approval process.");
+                                            break;
+                                    }
+                                }
+                            } catch (EOFException eof) {
+                                Log.e(TAG, "Connection lost with customer display.");
+                                onPairingServerListener.onPairingServerFailed("Connection lost with customer display.");
+                            } catch (IOException e) {
+                                Log.e(TAG, "Error reading message: " + e.getMessage());
+                                onPairingServerListener.onPairingServerFailed("Error occurred during connection approval process.");
+                            }
+                        },
+                        error -> {
+                            Log.e(TAG, "Error starting pairing server: " + error.getMessage());
+                            onPairingServerListener.onPairingServerFailed(error.getMessage());
+                        }
+                );
+        compositeDisposable.add(disposable);
     }
 
     @Override
@@ -101,54 +114,8 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
     }
 
     @Override
-    public void startPairingServer(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnPairingServerListener onPairingServerListener) {
-        onPairingServerListener.onPairingServerStarted();
-        SocketMessageBase socketMessageBase = new SocketMessageBase(clientInfo, NetworkConstants.REQUEST_CONNECTION_APPROVAL, serviceInfo.getServerId(), clientInfo.getClientID());
-        String message = jsonUtil.toJson(socketMessageBase);
-        Disposable disposable = sendMessageToServer(serviceInfo.getServerId(), socket, message)
-                .doOnComplete(onPairingServerListener::onConnectionRequestSent)
-                .andThen(catchConnectionApprovalResponse(serviceInfo))
-                .subscribe(
-                        isApproved -> {
-                            if ("approved".equals(isApproved)) {
-                                onPairingServerListener.onConnectionRequestApproved();
-                            } else {
-                                onPairingServerListener.onConnectionRequestRejected();
-                            }
-                        },
-                        error -> {
-                            onPairingServerListener.onPairingServerFailed(error.getMessage());
-                            Log.e(TAG, "Error starting pairing server: " + error.getMessage());
-                        }
-                );
-        compositeDisposable.add(disposable);
-    }
-
-    private Single<String> catchConnectionApprovalResponse(ServiceInfo serverInfo) {
-        return Single.<String>create(emitter -> {
-            Disposable disposable = serverMessageSubject
-//                    .filter(pair -> pair.first.equals(serverInfo.getServerID())) // Filter by server ID
-                    .map(pair -> pair.second) // Extract the message
-                    .subscribe(
-                            message -> {
-                                try {
-                                    // Final check to approve the connection
-                                    String isApproved = processConnectionApproval(message);
-                                    emitter.onSuccess(isApproved);
-                                } catch (Exception e) {
-                                    emitter.onError(e);
-                                }
-                            },
-                            throwable -> {
-                                if (!emitter.isDisposed()) {
-                                    emitter.onError(throwable); // Emit an error if timed out or failed
-                                }
-                            }
-                    );
-
-            // Clean up the disposable when the emitter is disposed
-            emitter.setDisposable(disposable);
-        }).subscribeOn(Schedulers.io());
+    public BehaviorSubject<Pair<String, String>> getServerMessageSubject() {
+        return serverMessageSubject;
     }
 
     private String processConnectionApproval(String message) {
@@ -181,5 +148,24 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
             Log.e(TAG, "Error processing connection approval: " + e.getMessage(), e);
             return "invalid";
         }
+    }
+
+    private ConnectionApproval parseConnectionApproval(Object data) {
+        try {
+            String jsonData = jsonUtil.toJson(data);
+            return jsonUtil.toObj(jsonData, ConnectionApproval.class);
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing connection approval data: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private boolean isValidSocketMessage(SocketMessageBase socketMessageBase) {
+        return socketMessageBase != null &&
+                socketMessageBase.getCommand() != null &&
+                !socketMessageBase.getCommand().isEmpty() &&
+                socketMessageBase.getData() != null &&
+                socketMessageBase.getSenderId() != null &&
+                socketMessageBase.getReceiverId() != null;
     }
 }

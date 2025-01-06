@@ -3,7 +3,7 @@ package com.example.customerdisplayhandler.core.network;
 import com.example.customerdisplayhandler.core.interfaces.ClientInfoManager;
 import com.example.customerdisplayhandler.helpers.IPManager;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
-import com.example.customerdisplayhandler.helpers.SharedPrefManager;
+import com.example.customerdisplayhandler.helpers.ISharedPrefManager;
 import com.example.customerdisplayhandler.model.ClientInfo;
 import com.example.customerdisplayhandler.utils.SharedPrefLabels;
 import java.util.UUID;
@@ -11,13 +11,13 @@ import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 
 public class ClientInfoManagerImpl implements ClientInfoManager {
-    private final SharedPrefManager sharedPrefManager;
+    private final ISharedPrefManager ISharedPrefManager;
     private final IPManager ipManager;
     private final IJsonUtil jsonUtil;
 
-    public ClientInfoManagerImpl(IPManager ipManager,SharedPrefManager sharedPrefManager, IJsonUtil jsonUtil) {
+    public ClientInfoManagerImpl(IPManager ipManager, ISharedPrefManager ISharedPrefManager, IJsonUtil jsonUtil) {
         this.ipManager = ipManager;
-        this.sharedPrefManager = sharedPrefManager;
+        this.ISharedPrefManager = ISharedPrefManager;
         this.jsonUtil = jsonUtil;
     }
     @Override
@@ -68,7 +68,7 @@ public class ClientInfoManagerImpl implements ClientInfoManager {
     private Single<ClientInfo> retrieveClientInfo() {
         return Single.create(emitter -> {
             try {
-                String clientInfoString = sharedPrefManager.getString(SharedPrefLabels.CLIENT_INFO_LABEL, "");
+                String clientInfoString = ISharedPrefManager.getString(SharedPrefLabels.CLIENT_INFO_LABEL, "");
                 if (clientInfoString.isEmpty()) {
                     emitter.onError(new Exception("Error occurred while retrieving POS info"));
                 } else {
@@ -84,7 +84,7 @@ public class ClientInfoManagerImpl implements ClientInfoManager {
         return Completable.create(emitter -> {
             try {
                 String clientInfoString = jsonUtil.toJson(clientInfo);
-                sharedPrefManager.putString(SharedPrefLabels.CLIENT_INFO_LABEL, clientInfoString);
+                ISharedPrefManager.putString(SharedPrefLabels.CLIENT_INFO_LABEL, clientInfoString);
                 emitter.onComplete();
             } catch (Exception e) {
                 Exception newException = new Exception("Error occurred while saving POS info");

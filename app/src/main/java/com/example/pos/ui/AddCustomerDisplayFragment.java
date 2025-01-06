@@ -3,16 +3,13 @@ package com.example.pos.ui;
 import android.os.Bundle;
 
 import androidx.fragment.app.DialogFragment;
-import androidx.fragment.app.Fragment;
 
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.Button;
 
-import com.example.customerdisplayhandler.model.ServerInfo;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.ui.UiProvider;
 import com.example.pos.R;

@@ -9,7 +9,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.customerdisplayhandler.model.ServerInfo;
+import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.pos.R;
 
 import java.util.ArrayList;
@@ -17,7 +17,7 @@ import java.util.List;
 
 public class ConnectedCustomerDisplayAdapter extends RecyclerView.Adapter<ConnectedCustomerDisplayAdapter.ViewHolder> {
     private static final String TAG = ConnectedCustomerDisplayAdapter.class.getSimpleName();
-    private final List<ServerInfo> connectedCustomerDisplays;
+    private final List<CustomerDisplay> connectedCustomerDisplays;
     private final OnItemClickListener itemClickListener;
 
     // Constructor
@@ -26,7 +26,7 @@ public class ConnectedCustomerDisplayAdapter extends RecyclerView.Adapter<Connec
         this.itemClickListener = itemClickListener;
     }
 
-    public void updateConnectedDisplayList(List<ServerInfo> connectedCustomerDisplays) {
+    public void updateConnectedDisplayList(List<CustomerDisplay> connectedCustomerDisplays) {
         try {
             this.connectedCustomerDisplays.clear();
             this.connectedCustomerDisplays.addAll(connectedCustomerDisplays);
@@ -51,11 +51,10 @@ public class ConnectedCustomerDisplayAdapter extends RecyclerView.Adapter<Connec
             this.itemView = itemView;
         }
 
-        public void bind(ServerInfo serverInfo) {
-            Log.d(TAG, "Binding server info: " + serverInfo.getServerDeviceName());
-            customerDisplayName.setText(serverInfo.getServerDeviceName());
-            customerDisplayIpAddress.setText(serverInfo.getServerIpAddress());
-            itemView.setOnClickListener(v -> itemClickListener.onItemClick(serverInfo));
+        public void bind(CustomerDisplay customerDisplay) {
+            customerDisplayName.setText(customerDisplay.getCustomerDisplayName());
+            customerDisplayIpAddress.setText(customerDisplay.getCustomerDisplayIpAddress());
+            itemView.setOnClickListener(v -> itemClickListener.onItemClick(customerDisplay));
         }
     }
 
@@ -79,6 +78,6 @@ public class ConnectedCustomerDisplayAdapter extends RecyclerView.Adapter<Connec
 
     // Interface for handling item clicks
     public interface OnItemClickListener {
-        void onItemClick(ServerInfo serverInfo);
+        void onItemClick(CustomerDisplay customerDisplay);
     }
 }

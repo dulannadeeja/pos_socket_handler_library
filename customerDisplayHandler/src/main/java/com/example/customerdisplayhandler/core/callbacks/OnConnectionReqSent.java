@@ -1,8 +1,8 @@
 package com.example.customerdisplayhandler.core.callbacks;
 
-import com.example.customerdisplayhandler.model.ServerInfo;
+import com.example.customerdisplayhandler.model.CustomerDisplay;
 
 public interface OnConnectionReqSent {
-    void onSuccess(ServerInfo serverInfo);
+    void onSuccess(CustomerDisplay customerDisplay);
     void onFailed(Exception e);
 }

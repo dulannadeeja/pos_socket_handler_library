@@ -2,6 +2,8 @@ package com.example.pos;
 
 import android.os.Bundle;
 import android.widget.Button;
+import android.widget.Toast;
+
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
@@ -34,6 +36,10 @@ public class MainActivity extends AppCompatActivity {
         customerDisplayButton.setOnClickListener(v -> {
             showCustomerDisplaySettingsFragment();
         });
+    }
+
+    public void showToast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
     private void showCustomerDisplaySettingsFragment() {

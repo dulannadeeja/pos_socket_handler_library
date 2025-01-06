@@ -3,11 +3,9 @@ package com.example.customerdisplayhandler.core.interfaces;
 import android.util.Pair;
 
 import com.example.customerdisplayhandler.model.ClientInfo;
-import com.example.customerdisplayhandler.model.ServerInfo;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 
 import java.net.Socket;
-import java.util.List;
 
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.subjects.BehaviorSubject;
@@ -22,7 +20,7 @@ public interface IConnectedServerManager {
     interface OnPairingServerListener{
         void onPairingServerStarted();
         void onConnectionRequestSent();
-        void onConnectionRequestApproved();
+        void onConnectionRequestApproved(ServiceInfo serviceInfo);
         void onConnectionRequestRejected();
         void onPairingServerFailed(String message);
     }

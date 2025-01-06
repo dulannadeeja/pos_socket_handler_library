@@ -11,6 +11,9 @@ import com.example.customerdisplayhandler.core.interfaces.IMulticastManager;
 import com.example.customerdisplayhandler.core.interfaces.INetworkServiceDiscoveryManager;
 import com.example.customerdisplayhandler.core.network.MulticastManagerImpl;
 import com.example.customerdisplayhandler.core.network.NetworkServiceDiscoveryManagerImpl;
+import com.example.customerdisplayhandler.helpers.ConnectedDisplaysRepositoryImpl;
+import com.example.customerdisplayhandler.helpers.IConnectedDisplaysRepository;
+import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
 import com.example.customerdisplayhandler.core.interfaces.ITcpConnectionManager;
@@ -19,14 +22,16 @@ import com.example.customerdisplayhandler.core.network.ConnectedServerManagerImp
 import com.example.customerdisplayhandler.core.network.TcpConnectionManagerImpl;
 import com.example.customerdisplayhandler.helpers.IPManager;
 import com.example.customerdisplayhandler.helpers.IPManagerImpl;
-import com.example.customerdisplayhandler.helpers.SharedPrefManager;
-import com.example.customerdisplayhandler.helpers.SharedPrefManagerImpl;
+import com.example.customerdisplayhandler.helpers.ISharedPrefManager;
+import com.example.customerdisplayhandler.helpers.ISharedPrefManagerImpl;
 import com.example.customerdisplayhandler.utils.JsonUtilImpl;
 
 import java.net.Socket;
+import java.util.List;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -41,8 +46,9 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     private INetworkServiceDiscoveryManager networkServiceDiscoveryManager;
     private IConnectedServerManager connectedServerManager;
     private IMulticastManager multicastManager;
-    private SharedPrefManager sharedPrefManager;
+    private ISharedPrefManager sharedPrefManager;
     private ClientInfoManager clientInfoManager;
+    private IConnectedDisplaysRepository connectedDisplaysManager;
     private CompositeDisposable compositeDisposable = new CompositeDisposable();
 
     public static CustomerDisplayManagerImpl newInstance(Context context, int serverPort) {
@@ -60,10 +66,11 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
         socketConnectionManager = new TcpConnectionManagerImpl();
         connectedServerManager = new ConnectedServerManagerImpl(jsonUtil);
         networkServiceDiscoveryManager = new NetworkServiceDiscoveryManagerImpl(context);
-        sharedPrefManager = SharedPrefManagerImpl.getInstance(context);
+        sharedPrefManager = ISharedPrefManagerImpl.getInstance(context);
         ipManager = new IPManagerImpl(context);
         multicastManager = new MulticastManagerImpl(NetworkConstants.MULTICAST_GROUP_ADDRESS, NetworkConstants.MULTICAST_PORT);
         clientInfoManager = new ClientInfoManagerImpl(ipManager, sharedPrefManager, jsonUtil);
+        connectedDisplaysManager = ConnectedDisplaysRepositoryImpl.getInstance(sharedPrefManager, jsonUtil);
     }
 
     @Override
@@ -92,11 +99,6 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe((pair) -> {
-                            startListeningForServerMessages(serviceInfo.getServerId(), pair.first).subscribe(() -> {
-                                Log.d("CustomerDisplayManager", "Listening for messages from server: " + pair.first.getInetAddress().getHostAddress());
-                            }, throwable -> {
-                                Log.e("CustomerDisplayManager", "Error listening for messages: " + throwable.getMessage());
-                            });
                             connectedServerManager.startPairingServer(serviceInfo, pair.first, pair.second, listener);
                         }, throwable -> {
                             Log.e("CustomerDisplayManager", "Error getting client info: " + throwable.getMessage());
@@ -108,6 +110,60 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     @Override
     public void stopPairingServer() {
         connectedServerManager.stopPairingServer();
+    }
+
+    @Override
+    public void addConnectedDisplay(String customerDisplayId, String customerDisplayName, String customerDisplayIpAddress, AddCustomerDisplayListener listener) {
+        CustomerDisplay customerDisplayNew = new CustomerDisplay(customerDisplayId, customerDisplayName, customerDisplayIpAddress);
+        Disposable disposable = connectedDisplaysManager.getCustomerDisplayById(customerDisplayId)
+                .doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display not found: " + customerDisplayId))
+                .switchIfEmpty(Single.just(new CustomerDisplay(null, null, null)))
+                .flatMapCompletable(customerDisplay -> {
+                    if (customerDisplay == null || customerDisplay.getCustomerDisplayID() == null) {
+                        return connectedDisplaysManager.addCustomerDisplay(customerDisplayNew)
+                                .doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display added: " + customerDisplayNew.getCustomerDisplayID()));
+                    } else {
+                        return connectedDisplaysManager.updateCustomerDisplay(customerDisplayNew)
+                                .doOnSuccess(updatedCustomerDisplay -> Log.d("CustomerDisplayManager", "Customer display updated: " + updatedCustomerDisplay.getCustomerDisplayID()))
+                                .ignoreElement();
+                    }
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> {
+                    listener.onCustomerDisplayAdded(customerDisplayNew);
+                }, throwable -> {
+                    Log.e("CustomerDisplayManager", "Error adding customer display: " + throwable.getMessage());
+                    listener.onCustomerDisplayAddFailed("Error occurred while saving customer display");
+                });
+        compositeDisposable.add(disposable);
+    }
+
+    @Override
+    public void removeConnectedDisplay(String customerDisplayId, RemoveCustomerDisplayListener listener) {
+        Disposable disposable = connectedDisplaysManager.removeCustomerDisplay(customerDisplayId)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> {
+                    Log.d("CustomerDisplayManager", "Customer display removed: " + customerDisplayId);
+                    listener.onCustomerDisplayRemoved();
+                }, throwable -> {
+                    Log.e("CustomerDisplayManager", "Error removing customer display: " + throwable.getMessage());
+                    listener.onCustomerDisplayRemoveFailed("Error occurred while removing customer display");
+                });
+        compositeDisposable.add(disposable);
+    }
+
+    @Override
+    public void getConnectedDisplays(GetConnectedDisplaysListener listener) {
+        Disposable disposable = connectedDisplaysManager.getListOfConnectedDisplays()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(listener::onConnectedDisplaysReceived, throwable -> {
+                    Log.e("CustomerDisplayManager", "Error getting connected displays: " + throwable.getMessage());
+                    listener.onConnectedDisplaysReceiveFailed("Error occurred while getting connected displays");
+                });
+        compositeDisposable.add(disposable);
     }
 
     @Override
