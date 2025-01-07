@@ -4,6 +4,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -11,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.pos.R;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +43,9 @@ public class ConnectedCustomerDisplayAdapter extends RecyclerView.Adapter<Connec
         private final TextView customerDisplayName;
         private final TextView customerDisplayIpAddress;
         private final View itemView;;
+        private final ImageView troubleshootingButton;
+        private final ImageView disconnectButton;
+        private final MaterialSwitch displayConnectionSwitch;
         private OnItemClickListener itemClickListener;
 
         public ViewHolder(@NonNull View itemView, OnItemClickListener listener) {
@@ -48,12 +53,19 @@ public class ConnectedCustomerDisplayAdapter extends RecyclerView.Adapter<Connec
             this.itemClickListener = listener;
             customerDisplayName = itemView.findViewById(R.id.customer_display_name);
             customerDisplayIpAddress = itemView.findViewById(R.id.customer_display_ip_address);
+            troubleshootingButton = itemView.findViewById(R.id.customer_display_troubleshoot_button);
+            disconnectButton = itemView.findViewById(R.id.customer_display_disconnect_button);
+            displayConnectionSwitch = itemView.findViewById(R.id.customer_display_connection_switch);
             this.itemView = itemView;
         }
 
         public void bind(CustomerDisplay customerDisplay) {
             customerDisplayName.setText(customerDisplay.getCustomerDisplayName());
             customerDisplayIpAddress.setText(customerDisplay.getCustomerDisplayIpAddress());
+            displayConnectionSwitch.setChecked(customerDisplay.getIsActivated());
+            displayConnectionSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> itemClickListener.onConnectionSwitchToggle(customerDisplay));
+            troubleshootingButton.setOnClickListener(v -> itemClickListener.onTroubleshootClick(customerDisplay));
+            disconnectButton.setOnClickListener(v -> itemClickListener.onDisconnectClick(customerDisplay));
             itemView.setOnClickListener(v -> itemClickListener.onItemClick(customerDisplay));
         }
     }
@@ -79,5 +91,8 @@ public class ConnectedCustomerDisplayAdapter extends RecyclerView.Adapter<Connec
     // Interface for handling item clicks
     public interface OnItemClickListener {
         void onItemClick(CustomerDisplay customerDisplay);
+        void onTroubleshootClick(CustomerDisplay customerDisplay);
+        void onDisconnectClick(CustomerDisplay customerDisplay);
+        void onConnectionSwitchToggle(CustomerDisplay customerDisplay);
     }
 }

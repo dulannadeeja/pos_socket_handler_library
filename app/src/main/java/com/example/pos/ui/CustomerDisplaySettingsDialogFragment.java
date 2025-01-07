@@ -72,8 +72,68 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
         connectedDisplaysRecyclerView = view.findViewById(com.example.customerdisplayhandler.R.id.connected_displays_recycler_view);
         noConnectedDisplaysLayout = view.findViewById(com.example.customerdisplayhandler.R.id.no_connected_displays_layout);
 
-        connectedDisplayAdapter = new ConnectedCustomerDisplayAdapter(serverInfo -> {
-            Log.d(TAG, "Server info clicked: " + serverInfo.getCustomerDisplayName());
+        connectedDisplayAdapter = new ConnectedCustomerDisplayAdapter(getItemClickListener());
+    }
+
+    private ConnectedCustomerDisplayAdapter.OnItemClickListener getItemClickListener(){
+        return new ConnectedCustomerDisplayAdapter.OnItemClickListener() {
+            @Override
+            public void onItemClick(CustomerDisplay customerDisplay) {
+                Log.d(TAG, "Customer display clicked: " + customerDisplay.getCustomerDisplayName());
+            }
+
+            @Override
+            public void onTroubleshootClick(CustomerDisplay customerDisplay) {
+
+            }
+
+            @Override
+            public void onDisconnectClick(CustomerDisplay customerDisplay) {
+                disconnectCustomerDisplay(customerDisplay);
+            }
+
+            @Override
+            public void onConnectionSwitchToggle(CustomerDisplay customerDisplay) {
+                toggleCustomerDisplayActivation(customerDisplay);
+            }
+        };
+    }
+
+    private void disconnectCustomerDisplay(CustomerDisplay customerDisplay){
+        customerDisplayManager.removeConnectedDisplay(customerDisplay.getCustomerDisplayID(), new ICustomerDisplayManager.RemoveCustomerDisplayListener() {
+            @Override
+            public void onCustomerDisplayRemoved() {
+                showToast(customerDisplay.getCustomerDisplayName() + " removed successfully");
+                refreshConnectedDisplays();
+            }
+
+            @Override
+            public void onCustomerDisplayRemoveFailed(String errorMessage) {
+                Log.e(TAG, "Error removing customer display: " + errorMessage);
+                showToast("Error occurred while removing " + customerDisplay.getCustomerDisplayName());
+            }
+        });
+    }
+
+    private void toggleCustomerDisplayActivation(CustomerDisplay customerDisplay){
+        customerDisplayManager.toggleCustomerDisplayActivation(customerDisplay.getCustomerDisplayID(), new ICustomerDisplayManager.OnCustomerDisplayActivationToggleListener() {
+            @Override
+            public void onCustomerDisplayActivated() {
+                showToast(customerDisplay.getCustomerDisplayName() + " will now receive updates");
+                refreshConnectedDisplays();
+            }
+
+            @Override
+            public void onCustomerDisplayDeactivated() {
+                showToast(customerDisplay.getCustomerDisplayName() + " will no longer receive updates");
+                refreshConnectedDisplays();
+            }
+
+            @Override
+            public void onCustomerDisplayActivationToggleFailed(String errorMessage) {
+                Log.e(TAG, "Error toggling customer display activation: " + errorMessage);
+                showToast(errorMessage);
+            }
         });
     }
 

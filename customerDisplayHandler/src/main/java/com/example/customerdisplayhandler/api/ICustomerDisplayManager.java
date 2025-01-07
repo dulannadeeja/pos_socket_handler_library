@@ -20,6 +20,7 @@ public interface ICustomerDisplayManager {
     void addConnectedDisplay(String customerDisplayId, String customerDisplayName, String customerDisplayIpAddress,AddCustomerDisplayListener listener);
     void removeConnectedDisplay(String customerDisplayId, RemoveCustomerDisplayListener listener);
     void getConnectedDisplays(GetConnectedDisplaysListener listener);
+    void toggleCustomerDisplayActivation(String customerDisplayId,OnCustomerDisplayActivationToggleListener listener);
     void disposeCustomerDisplayManager();
 
 
@@ -34,6 +35,11 @@ public interface ICustomerDisplayManager {
     interface GetConnectedDisplaysListener {
         void onConnectedDisplaysReceived(List<CustomerDisplay> customerDisplays);
         void onConnectedDisplaysReceiveFailed(String errorMessage);
+    }
+    interface OnCustomerDisplayActivationToggleListener {
+        void onCustomerDisplayActivated();
+        void onCustomerDisplayDeactivated();
+        void onCustomerDisplayActivationToggleFailed(String errorMessage);
     }
     interface OnPairingServerListener{
         void onPairingServerStarted();

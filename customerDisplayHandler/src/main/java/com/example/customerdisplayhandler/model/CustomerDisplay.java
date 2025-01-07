@@ -4,11 +4,13 @@ public class CustomerDisplay {
     private String customerDisplayID;
     private String customerDisplayName;
     private String customerDisplayIpAddress;
+    private Boolean isActivated;
 
-    public CustomerDisplay(String customerDisplayID, String customerDisplayName, String customerDisplayIpAddress) {
+    public CustomerDisplay(String customerDisplayID, String customerDisplayName, String customerDisplayIpAddress, Boolean isActivated) {
         this.customerDisplayID = customerDisplayID;
         this.customerDisplayName = customerDisplayName;
         this.customerDisplayIpAddress = customerDisplayIpAddress;
+        this.isActivated = isActivated;
     }
 
     public String getCustomerDisplayID() {
@@ -21,5 +23,9 @@ public class CustomerDisplay {
 
     public String getCustomerDisplayIpAddress() {
         return customerDisplayIpAddress;
+    }
+
+    public Boolean getIsActivated() {
+        return isActivated;
     }
 }

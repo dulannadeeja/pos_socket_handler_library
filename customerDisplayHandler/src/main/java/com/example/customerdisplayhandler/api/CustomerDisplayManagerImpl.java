@@ -136,8 +136,8 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
 
     @Override
     public void addConnectedDisplay(String customerDisplayId, String customerDisplayName, String customerDisplayIpAddress, AddCustomerDisplayListener listener) {
-        CustomerDisplay customerDisplayNew = new CustomerDisplay(customerDisplayId, customerDisplayName, customerDisplayIpAddress);
-        Disposable disposable = connectedDisplaysManager.getCustomerDisplayById(customerDisplayId).doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display not found: " + customerDisplayId)).switchIfEmpty(Single.just(new CustomerDisplay(null, null, null))).flatMapCompletable(customerDisplay -> {
+        CustomerDisplay customerDisplayNew = new CustomerDisplay(customerDisplayId, customerDisplayName, customerDisplayIpAddress, true);
+        Disposable disposable = connectedDisplaysManager.getCustomerDisplayById(customerDisplayId).doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display not found: " + customerDisplayId)).switchIfEmpty(Single.just(new CustomerDisplay(null, null, null, false))).flatMapCompletable(customerDisplay -> {
             if (customerDisplay == null || customerDisplay.getCustomerDisplayID() == null) {
                 return connectedDisplaysManager.addCustomerDisplay(customerDisplayNew).doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display added: " + customerDisplayNew.getCustomerDisplayID()));
             } else {
@@ -170,6 +170,35 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
             Log.e("CustomerDisplayManager", "Error getting connected displays: " + throwable.getMessage());
             listener.onConnectedDisplaysReceiveFailed("Error occurred while getting connected displays");
         });
+        compositeDisposable.add(disposable);
+    }
+
+    @Override
+    public void toggleCustomerDisplayActivation(String customerDisplayId, OnCustomerDisplayActivationToggleListener listener) {
+        Disposable disposable = connectedDisplaysManager
+                .getCustomerDisplayById(customerDisplayId)
+                .defaultIfEmpty(new CustomerDisplay(null, null, null, false))
+                .flatMap(customerDisplay -> {
+                    if (customerDisplay != null && customerDisplay.getCustomerDisplayID() != null) {
+                        CustomerDisplay updatedCustomerDisplay = new CustomerDisplay(customerDisplay.getCustomerDisplayID(), customerDisplay.getCustomerDisplayName(), customerDisplay.getCustomerDisplayIpAddress(), !customerDisplay.getIsActivated());
+                        return connectedDisplaysManager.updateCustomerDisplay(updatedCustomerDisplay)
+                                .map(CustomerDisplay::getIsActivated);
+                    } else {
+                        return Single.error(new IOException("Customer display not found"));
+                    }
+                }).subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe((isActivated) -> {
+                    Log.d("CustomerDisplayManager", "Customer display activation toggled: " + customerDisplayId);
+                    if (isActivated) {
+                        listener.onCustomerDisplayActivated();
+                    } else {
+                        listener.onCustomerDisplayDeactivated();
+                    }
+                }, throwable -> {
+                    Log.e("CustomerDisplayManager", "Error toggling customer display activation: " + throwable.getMessage());
+                    listener.onCustomerDisplayActivationToggleFailed("Operation failed, please try again");
+                });
         compositeDisposable.add(disposable);
     }
 
