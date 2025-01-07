@@ -7,6 +7,7 @@ import androidx.fragment.app.FragmentManager;
 
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,6 +33,7 @@ public class PairingFragment extends DialogFragment {
     private ICustomerDisplayManager customerDisplayManager;
     private TextView pairingStatusTextView;
     private MainActivity mainActivity;
+
     public static PairingFragment newInstance(ServiceInfo serviceInfo) {
         PairingFragment fragment = new PairingFragment();
         Bundle args = new Bundle();
@@ -76,32 +78,41 @@ public class PairingFragment extends DialogFragment {
         registerPairingServerCallbacks();
     }
 
-    private void registerPairingServerCallbacks(){
-        customerDisplayManager.startPairingServer(serviceInfo, new IConnectedServerManager.OnPairingServerListener() {
+    private void registerPairingServerCallbacks() {
+        customerDisplayManager.startPairingServer(serviceInfo, new ICustomerDisplayManager.OnPairingServerListener() {
             @Override
             public void onPairingServerStarted() {
-                requireActivity().runOnUiThread(() -> {
-                    pairingStatusTextView.setText("Searching for customer display...");
-                });
+                if (isAdded()){
+                    requireActivity().runOnUiThread(() -> {
+                        pairingStatusTextView.setText("Searching for customer display...");
+                        pairingStatusTextView.setTextColor(requireActivity().getColor(R.color.textPrimaryColor));
+                    });
+                }
             }
 
             @Override
             public void onConnectionRequestSent() {
-                runWithDelay(2000, () -> {
-                    uiHandler.post(() -> {
-                        pairingStatusTextView.setText("Connection request sent, waiting for approval...");
+                if (isAdded()){
+                    runWithDelay(2000, () -> {
+                        uiHandler.post(() -> {
+                            pairingStatusTextView.setText("Connection request sent, waiting for approval...");
+                            pairingStatusTextView.setTextColor(requireActivity().getColor(R.color.textPrimaryColor));
+                        });
                     });
-                });
+                }
             }
 
             @Override
             public void onConnectionRequestApproved(ServiceInfo serviceInfo) {
-                uiHandler.post(() -> {
-                    pairingStatusTextView.setText("Connection approval received from customer display...");
-                });
-                runWithDelay(2000, () ->{
-                    onCustomerDisplayConnected(serviceInfo);
-                });
+                if (isAdded()) {
+                    uiHandler.post(() -> {
+                        pairingStatusTextView.setText("Connection approval received from customer display...");
+                        pairingStatusTextView.setTextColor(requireActivity().getColor(R.color.primaryColor));
+                    });
+                    runWithDelay(2000, () -> {
+                        onCustomerDisplayConnected(serviceInfo);
+                    });
+                }
             }
 
             @Override
@@ -114,7 +125,7 @@ public class PairingFragment extends DialogFragment {
 
             @Override
             public void onPairingServerFailed(String message) {
-                if(isAdded()){
+                if (isAdded()) {
                     requireActivity().runOnUiThread(() -> {
                         pairingStatusTextView.setText(message);
                         pairingStatusTextView.setTextColor(requireActivity().getColor(R.color.errorColor));
@@ -124,7 +135,7 @@ public class PairingFragment extends DialogFragment {
         });
     }
 
-    private void onCustomerDisplayConnected(ServiceInfo serviceInfo){
+    private void onCustomerDisplayConnected(ServiceInfo serviceInfo) {
 
         FragmentManager fragmentManager = requireActivity().getSupportFragmentManager();
         AddCustomerDisplayFragment addCustomerDisplayFragment = (AddCustomerDisplayFragment) fragmentManager.findFragmentByTag(AddCustomerDisplayFragment.TAG);
@@ -133,7 +144,7 @@ public class PairingFragment extends DialogFragment {
         customerDisplayManager.addConnectedDisplay(serviceInfo.getServerId(), serviceInfo.getDeviceName(), serviceInfo.getIpAddress(), new ICustomerDisplayManager.AddCustomerDisplayListener() {
             @Override
             public void onCustomerDisplayAdded(CustomerDisplay customerDisplay) {
-                uiHandler.post(()->{
+                uiHandler.post(() -> {
                     addCustomerDisplayFragment.dismiss();
                     customerDisplaySettingsDialogFragment.refreshConnectedDisplays();
                     dismiss();
@@ -143,7 +154,7 @@ public class PairingFragment extends DialogFragment {
 
             @Override
             public void onCustomerDisplayAddFailed(String errorMessage) {
-                uiHandler.post(()->{
+                uiHandler.post(() -> {
                     dismiss();
                     mainActivity.showToast(errorMessage);
                 });
@@ -153,8 +164,9 @@ public class PairingFragment extends DialogFragment {
 
     /**
      * Runs a task with a specified delay on the background thread.
+     *
      * @param delayMillis The delay in milliseconds.
-     * @param task The task to execute after the delay.
+     * @param task        The task to execute after the delay.
      */
     private void runWithDelay(long delayMillis, Runnable task) {
         backgroundHandler.post(() -> {
@@ -168,8 +180,14 @@ public class PairingFragment extends DialogFragment {
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        customerDisplayManager.stopPairingServer();
+    public void onDestroyView() {
+        super.onDestroyView();
+//        customerDisplayManager.stopPairingServer();
+        if (handlerThread != null) {
+            handlerThread.quitSafely();
+            handlerThread = null;
+        }
+        backgroundHandler = null;
+        uiHandler = null;
     }
 }

@@ -14,7 +14,7 @@ public interface ICustomerDisplayManager {
     void startSearchForCustomerDisplays(INetworkServiceDiscoveryManager.SearchListener searchListener);
     void stopSearchForCustomerDisplays();
     Completable startListeningForServerMessages(String serverId, Socket socket);
-    void startPairingServer(ServiceInfo serviceInfo, IConnectedServerManager.OnPairingServerListener listener);
+    void startPairingServer(ServiceInfo serviceInfo, OnPairingServerListener listener);
     void stopPairingServer();
     void sendMulticastMessage(String message);
     void addConnectedDisplay(String customerDisplayId, String customerDisplayName, String customerDisplayIpAddress,AddCustomerDisplayListener listener);
@@ -34,5 +34,12 @@ public interface ICustomerDisplayManager {
     interface GetConnectedDisplaysListener {
         void onConnectedDisplaysReceived(List<CustomerDisplay> customerDisplays);
         void onConnectedDisplaysReceiveFailed(String errorMessage);
+    }
+    interface OnPairingServerListener{
+        void onPairingServerStarted();
+        void onConnectionRequestSent();
+        void onConnectionRequestApproved(ServiceInfo serviceInfo);
+        void onConnectionRequestRejected();
+        void onPairingServerFailed(String message);
     }
 }

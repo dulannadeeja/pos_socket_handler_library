@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.net.Socket;
 
 import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -27,7 +28,6 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
     private static final String TAG = ConnectedServerManagerImpl.class.getSimpleName();
     private final IJsonUtil jsonUtil;
     private final BehaviorSubject<Pair<String, String>> serverMessageSubject = BehaviorSubject.create();
-    private final CompositeDisposable compositeDisposable = new CompositeDisposable();
 
     public ConnectedServerManagerImpl(IJsonUtil jsonUtil) {
         this.jsonUtil = jsonUtil;
@@ -35,15 +35,19 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
 
     @Override
     public Completable sendMessageToServer(String serverId, Socket socket, String message) {
-        return Completable.fromAction(() -> {
+        return Completable.create((emitter) -> {
             try {
                 DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
                 dataOutputStream.writeUTF(message);
                 dataOutputStream.flush();
                 Log.i(TAG, "Message sent to server: " + message);
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to send message to server: " + serverId, e);
-                throw new Exception("Error sending message to server: " + serverId, e);
+                emitter.onComplete();
+            } catch (EOFException eof) {
+                Log.e(TAG, "Client disconnected from server, IP: " + socket.getInetAddress().getHostAddress() + ", Server ID: " + serverId);
+                emitter.onError(new Exception("Customer display disconnected, cannot send message."));
+            } catch (IOException e) {
+                Log.e(TAG, "Error sending message: " + e.getMessage());
+                emitter.onError(new Exception("Error occurred while sending message to customer display"));
             }
         }).subscribeOn(Schedulers.io()); // Perform operation on IO thread
     }
@@ -67,50 +71,56 @@ public class ConnectedServerManagerImpl implements IConnectedServerManager {
     }
 
     @Override
-    public void startPairingServer(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnPairingServerListener onPairingServerListener) {
-        onPairingServerListener.onPairingServerStarted();
-        SocketMessageBase socketMessageBase = new SocketMessageBase(clientInfo, NetworkConstants.REQUEST_CONNECTION_APPROVAL, serviceInfo.getServerId(), clientInfo.getClientID());
-        String message = jsonUtil.toJson(socketMessageBase);
-        Disposable disposable = sendMessageToServer(serviceInfo.getServerId(), socket, message)
-                .doOnComplete(onPairingServerListener::onConnectionRequestSent)
-                .subscribe(
-                        () -> {
-                            try (DataInputStream input = new DataInputStream(socket.getInputStream())) {
-                                String serverMessage;
-                                while ((serverMessage = input.readUTF()) != null) {
-                                    String approvalStatus = processConnectionApproval(serverMessage);
-                                    switch (approvalStatus) {
-                                        case "approved":
-                                            onPairingServerListener.onConnectionRequestApproved(serviceInfo);
-                                            break;
-                                        case "rejected":
-                                            onPairingServerListener.onConnectionRequestRejected();
-                                            break;
-                                        default:
-                                            Log.e(TAG, "invalid connection approval");
-                                            onPairingServerListener.onPairingServerFailed("Error occurred during connection approval process.");
-                                            break;
-                                    }
-                                }
-                            } catch (EOFException eof) {
-                                Log.e(TAG, "Connection lost with customer display.");
-                                onPairingServerListener.onPairingServerFailed("Connection lost with customer display.");
-                            } catch (IOException e) {
-                                Log.e(TAG, "Error reading message: " + e.getMessage());
-                                onPairingServerListener.onPairingServerFailed("Error occurred during connection approval process.");
-                            }
-                        },
-                        error -> {
-                            Log.e(TAG, "Error starting pairing server: " + error.getMessage());
-                            onPairingServerListener.onPairingServerFailed(error.getMessage());
-                        }
-                );
-        compositeDisposable.add(disposable);
-    }
+    public Single<Boolean> startPairingServer(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnConnectionRequestSendListener onConnectionRequestSendListener) {
+        return Single.<Boolean>create(emitter -> {
+                    try {
+                        // Notify the listener that the pairing server has started
+                        SocketMessageBase socketMessageBase = new SocketMessageBase(clientInfo, NetworkConstants.REQUEST_CONNECTION_APPROVAL, serviceInfo.getServerId(), clientInfo.getClientID());
+                        String message = jsonUtil.toJson(socketMessageBase);
 
-    @Override
-    public void stopPairingServer() {
-        compositeDisposable.clear();
+                        Log.i(TAG, "Sending connection request to customer display.");
+
+                        sendMessageToServer(serviceInfo.getServerId(), socket, message)
+                                .doOnComplete(onConnectionRequestSendListener::onConnectionRequestSent)
+                                .doOnError((e)->{
+                                    if(!emitter.isDisposed()){
+                                        emitter.onError(e);
+                                    }
+                                })
+                                .blockingAwait(); // Block until the message is sent
+
+                        Log.i(TAG, "Waiting for connection approval from customer display.");
+                        try {
+                            DataInputStream input = new DataInputStream(socket.getInputStream());
+                            Log.i(TAG, "Listening for connection approval from customer display.");
+                            String serverMessage;
+                            while ((serverMessage = input.readUTF()) != null) {
+                                Log.i(TAG, "Message received from server: " + serverMessage);
+                                String approvalStatus = processConnectionApproval(serverMessage);
+                                switch (approvalStatus) {
+                                    case "approved":
+                                        Log.i(TAG, "Connection approved.");
+                                        emitter.onSuccess(true);
+                                        return;
+                                    case "rejected":
+                                        Log.e(TAG, "Connection rejected.");
+                                        emitter.onSuccess(false);
+                                        return;
+                                }
+                            }
+                        } catch (EOFException eof) {
+                            Log.e(TAG, "Connection lost with customer display.");
+                            emitter.onError(new Exception("Connection lost with customer display."));
+                        } catch (IOException e) {
+                            Log.e(TAG, "Error reading message: " + e.getMessage());
+                            emitter.onError(new Exception("Error during connection approval process."));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error starting pairing server: " + e.getMessage());
+                        emitter.onError(e);
+                    }
+                })
+                .subscribeOn(Schedulers.io()); // Perform the operation on an IO thread
     }
 
     @Override

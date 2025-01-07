@@ -13,6 +13,7 @@ import com.example.customerdisplayhandler.core.network.MulticastManagerImpl;
 import com.example.customerdisplayhandler.core.network.NetworkServiceDiscoveryManagerImpl;
 import com.example.customerdisplayhandler.helpers.ConnectedDisplaysRepositoryImpl;
 import com.example.customerdisplayhandler.helpers.IConnectedDisplaysRepository;
+import com.example.customerdisplayhandler.model.ClientInfo;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
@@ -26,19 +27,22 @@ import com.example.customerdisplayhandler.helpers.ISharedPrefManager;
 import com.example.customerdisplayhandler.helpers.ISharedPrefManagerImpl;
 import com.example.customerdisplayhandler.utils.JsonUtilImpl;
 
+import java.io.IOException;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.List;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subjects.ReplaySubject;
 
 public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
-    private static CustomerDisplayManagerImpl INSTANCE;
-    private Context context;
+    private static volatile CustomerDisplayManagerImpl INSTANCE;
     private int serverPort;
     private IJsonUtil jsonUtil;
     private IPManager ipManager;
@@ -49,9 +53,11 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     private ISharedPrefManager sharedPrefManager;
     private ClientInfoManager clientInfoManager;
     private IConnectedDisplaysRepository connectedDisplaysManager;
-    private CompositeDisposable compositeDisposable = new CompositeDisposable();
+    private final ArrayList<Pair<ServiceInfo, Socket>> connectedServers = new ArrayList<>();
+    private volatile CompositeDisposable pairingCompositeDisposable = new CompositeDisposable();
+    private volatile CompositeDisposable compositeDisposable = new CompositeDisposable();
 
-    public static CustomerDisplayManagerImpl newInstance(Context context, int serverPort) {
+    public static synchronized CustomerDisplayManagerImpl newInstance(Context context, int serverPort) {
         if (INSTANCE == null) {
             INSTANCE = new CustomerDisplayManagerImpl(context, serverPort);
         }
@@ -59,7 +65,6 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     }
 
     private CustomerDisplayManagerImpl(Context context, int serverPort) {
-        this.context = context;
         this.serverPort = serverPort;
         jsonUtil = new JsonUtilImpl();
         ipManager = new IPManagerImpl(context);
@@ -92,95 +97,114 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     }
 
     @Override
-    public void startPairingServer(ServiceInfo serviceInfo, IConnectedServerManager.OnPairingServerListener listener) {
-        compositeDisposable.add(
-                socketConnectionManager.connectToServer(serviceInfo.getIpAddress(), serverPort)
-                        .flatMap(socket -> clientInfoManager.getClientInfo().map(clientInfo -> new Pair<>(socket, clientInfo)))
-                        .subscribeOn(Schedulers.io())
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe((pair) -> {
-                            connectedServerManager.startPairingServer(serviceInfo, pair.first, pair.second, listener);
-                        }, throwable -> {
-                            Log.e("CustomerDisplayManager", "Error getting client info: " + throwable.getMessage());
-                            listener.onPairingServerFailed(throwable.getMessage());
-                        })
-        );
+    public void startPairingServer(ServiceInfo serviceInfo, OnPairingServerListener listener) {
+        Log.d("CustomerDisplayManager", "Connecting to server: " + serviceInfo.getIpAddress());
+        Disposable pairingServerDisposable = findSocketIfConnected(serviceInfo)
+                .doOnSubscribe(disposable -> listener.onPairingServerStarted())
+                .switchIfEmpty(socketConnectionManager.connectToServer(serviceInfo.getIpAddress(), serverPort)
+                        .doOnSuccess(socket -> connectedServers.add(new Pair<>(serviceInfo, socket)))
+                )
+                .flatMap(socket -> clientInfoManager.getClientInfo()
+                        .map(clientInfo -> new Pair<>(socket, clientInfo))
+                        .doOnSubscribe(disposable -> Log.d("CustomerDisplayManager", "Getting client info"))
+                        .doOnSuccess(pair -> Log.d("CustomerDisplayManager", "Client info: " + pair.second.getClientID())))
+                .flatMap(pair -> {
+                    Log.d("CustomerDisplayManager", "Client info: " + pair.second.getClientID());
+                    Socket socket = pair.first;
+                    ClientInfo clientInfo = pair.second;
+                    return connectedServerManager.startPairingServer(serviceInfo, socket, clientInfo, listener::onConnectionRequestSent);
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe((isAccepted) -> {
+                    if (isAccepted) {
+                        listener.onConnectionRequestApproved(serviceInfo);
+                    } else {
+                        listener.onConnectionRequestRejected();
+                    }
+                }, throwable -> {
+                    Log.e("CustomerDisplayManager", "Error getting client info: " + throwable.getMessage());
+                    listener.onPairingServerFailed(throwable.getMessage());
+                });
+        pairingCompositeDisposable.add(pairingServerDisposable);
     }
 
     @Override
     public void stopPairingServer() {
-        connectedServerManager.stopPairingServer();
+        pairingCompositeDisposable.clear();
     }
 
     @Override
     public void addConnectedDisplay(String customerDisplayId, String customerDisplayName, String customerDisplayIpAddress, AddCustomerDisplayListener listener) {
         CustomerDisplay customerDisplayNew = new CustomerDisplay(customerDisplayId, customerDisplayName, customerDisplayIpAddress);
-        Disposable disposable = connectedDisplaysManager.getCustomerDisplayById(customerDisplayId)
-                .doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display not found: " + customerDisplayId))
-                .switchIfEmpty(Single.just(new CustomerDisplay(null, null, null)))
-                .flatMapCompletable(customerDisplay -> {
-                    if (customerDisplay == null || customerDisplay.getCustomerDisplayID() == null) {
-                        return connectedDisplaysManager.addCustomerDisplay(customerDisplayNew)
-                                .doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display added: " + customerDisplayNew.getCustomerDisplayID()));
-                    } else {
-                        return connectedDisplaysManager.updateCustomerDisplay(customerDisplayNew)
-                                .doOnSuccess(updatedCustomerDisplay -> Log.d("CustomerDisplayManager", "Customer display updated: " + updatedCustomerDisplay.getCustomerDisplayID()))
-                                .ignoreElement();
-                    }
-                })
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(() -> {
-                    listener.onCustomerDisplayAdded(customerDisplayNew);
-                }, throwable -> {
-                    Log.e("CustomerDisplayManager", "Error adding customer display: " + throwable.getMessage());
-                    listener.onCustomerDisplayAddFailed("Error occurred while saving customer display");
-                });
-        compositeDisposable.add(disposable);
+        Disposable disposable = connectedDisplaysManager.getCustomerDisplayById(customerDisplayId).doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display not found: " + customerDisplayId)).switchIfEmpty(Single.just(new CustomerDisplay(null, null, null))).flatMapCompletable(customerDisplay -> {
+            if (customerDisplay == null || customerDisplay.getCustomerDisplayID() == null) {
+                return connectedDisplaysManager.addCustomerDisplay(customerDisplayNew).doOnComplete(() -> Log.d("CustomerDisplayManager", "Customer display added: " + customerDisplayNew.getCustomerDisplayID()));
+            } else {
+                return connectedDisplaysManager.updateCustomerDisplay(customerDisplayNew).doOnSuccess(updatedCustomerDisplay -> Log.d("CustomerDisplayManager", "Customer display updated: " + updatedCustomerDisplay.getCustomerDisplayID())).ignoreElement();
+            }
+        }).subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread()).subscribe(() -> {
+            listener.onCustomerDisplayAdded(customerDisplayNew);
+        }, throwable -> {
+            Log.e("CustomerDisplayManager", "Error adding customer display: " + throwable.getMessage());
+            listener.onCustomerDisplayAddFailed("Error occurred while saving customer display");
+        });
+        pairingCompositeDisposable.add(disposable);
     }
 
     @Override
     public void removeConnectedDisplay(String customerDisplayId, RemoveCustomerDisplayListener listener) {
-        Disposable disposable = connectedDisplaysManager.removeCustomerDisplay(customerDisplayId)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(() -> {
-                    Log.d("CustomerDisplayManager", "Customer display removed: " + customerDisplayId);
-                    listener.onCustomerDisplayRemoved();
-                }, throwable -> {
-                    Log.e("CustomerDisplayManager", "Error removing customer display: " + throwable.getMessage());
-                    listener.onCustomerDisplayRemoveFailed("Error occurred while removing customer display");
-                });
+        Disposable disposable = connectedDisplaysManager.removeCustomerDisplay(customerDisplayId).subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread()).subscribe(() -> {
+            Log.d("CustomerDisplayManager", "Customer display removed: " + customerDisplayId);
+            listener.onCustomerDisplayRemoved();
+        }, throwable -> {
+            Log.e("CustomerDisplayManager", "Error removing customer display: " + throwable.getMessage());
+            listener.onCustomerDisplayRemoveFailed("Error occurred while removing customer display");
+        });
         compositeDisposable.add(disposable);
     }
 
     @Override
     public void getConnectedDisplays(GetConnectedDisplaysListener listener) {
-        Disposable disposable = connectedDisplaysManager.getListOfConnectedDisplays()
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(listener::onConnectedDisplaysReceived, throwable -> {
-                    Log.e("CustomerDisplayManager", "Error getting connected displays: " + throwable.getMessage());
-                    listener.onConnectedDisplaysReceiveFailed("Error occurred while getting connected displays");
-                });
+        Disposable disposable = connectedDisplaysManager.getListOfConnectedDisplays().subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread()).subscribe(listener::onConnectedDisplaysReceived, throwable -> {
+            Log.e("CustomerDisplayManager", "Error getting connected displays: " + throwable.getMessage());
+            listener.onConnectedDisplaysReceiveFailed("Error occurred while getting connected displays");
+        });
         compositeDisposable.add(disposable);
     }
 
     @Override
     public void sendMulticastMessage(String message) {
-        Disposable disposable = multicastManager.sendMessage(message)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(() -> {
-                    Log.d("CustomerDisplayManager", "Multicast message sent: " + message);
-                }, throwable -> {
-                    Log.e("CustomerDisplayManager", "Error sending multicast message: " + throwable.getMessage());
-                });
+        Disposable disposable = multicastManager.sendMessage(message).subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread()).subscribe(() -> {
+            Log.d("CustomerDisplayManager", "Multicast message sent: " + message);
+        }, throwable -> {
+            Log.e("CustomerDisplayManager", "Error sending multicast message: " + throwable.getMessage());
+        });
         compositeDisposable.add(disposable);
     }
 
     @Override
     public void disposeCustomerDisplayManager() {
         compositeDisposable.clear();
+    }
+
+    private Completable disconnectServerIfConnected(ServiceInfo serviceInfo) {
+        Pair<ServiceInfo, Socket> connectedServer = connectedServers.stream().filter(pair -> pair.first.getServerId().equals(serviceInfo.getServerId())).findFirst().orElse(null);
+        if (connectedServer != null) {
+            return socketConnectionManager.disconnectSafelyFromServer(connectedServer.second);
+        } else {
+            return Completable.complete();
+        }
+    }
+
+    private Maybe<Socket> findSocketIfConnected(ServiceInfo serviceInfo) {
+        return Maybe.create(emitter -> {
+            Pair<ServiceInfo, Socket> connectedServer = connectedServers.stream().filter(pair -> pair.first.getServerId().equals(serviceInfo.getServerId())).findFirst().orElse(null);
+            if (connectedServer != null) {
+                emitter.onSuccess(connectedServer.second);
+            } else {
+                emitter.onComplete();
+            }
+        });
     }
 }
