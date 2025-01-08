@@ -27,7 +27,9 @@ public class TcpConnectionManagerImpl implements ITcpConnectionManager {
                     } catch (Exception e) {
                         Log.e(TAG, "Error connecting to server: " + e.getMessage());
                         Exception newException = new Exception("Error occurred while connecting to customer display");
-                        emitter.onError(newException);
+                        if (!emitter.isDisposed()) {
+                            emitter.onError(newException);
+                        }
                     }
                 })
                 .subscribeOn(Schedulers.io()) // Perform the connection on an IO thread

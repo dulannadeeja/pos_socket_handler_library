@@ -10,6 +10,7 @@ public class NetworkConstants {
     public static final String CONNECTED_CLIENT_ID_LABEL = "connectedClientID";
     public static final String IP_ADDRESS_LABEL = "ipAddress";
     public static final int SERVICE_DISCOVERY_TIMEOUT = 60000;
+    public static final int TROUBLESHOOTING_TIMEOUT = 30000;
     public static final int CONNECTION_APPROVAL_TIMEOUT = 60000;
     public static final String REQUEST_CONNECTION_APPROVAL = "REQUEST_CONNECTION_APPROVAL_FROM_CLIENT";
     public static final String RESPONSE_CONNECTION_APPROVAL = "RESPONSE_CONNECTION_APPROVAL_FROM_SERVER";

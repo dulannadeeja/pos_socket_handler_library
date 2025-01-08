@@ -1,6 +1,8 @@
 package com.example.customerdisplayhandler.model;
 
-public class CustomerDisplay {
+import java.io.Serializable;
+
+public class CustomerDisplay implements Serializable {
     private String customerDisplayID;
     private String customerDisplayName;
     private String customerDisplayIpAddress;

@@ -84,7 +84,10 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
 
             @Override
             public void onTroubleshootClick(CustomerDisplay customerDisplay) {
-
+                requireActivity().runOnUiThread(() -> {
+                    TroubleshootDisplayFragment troubleshootDisplayFragment = TroubleshootDisplayFragment.newInstance(customerDisplay);
+                    troubleshootDisplayFragment.show(requireActivity().getSupportFragmentManager(), TroubleshootDisplayFragment.TAG);
+                });
             }
 
             @Override

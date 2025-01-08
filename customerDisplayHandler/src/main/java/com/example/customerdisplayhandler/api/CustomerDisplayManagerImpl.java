@@ -1,5 +1,7 @@
 package com.example.customerdisplayhandler.api;
 
+import static io.reactivex.rxjava3.core.Single.create;
+
 import android.content.Context;
 import android.util.Log;
 import android.util.Pair;
@@ -213,6 +215,27 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     }
 
     @Override
+    public void startTroubleShooting(CustomerDisplay customerDisplay, OnTroubleshootListener listener) {
+        compositeDisposable.clear();
+        ServiceInfo serviceInfo = new ServiceInfo(
+                customerDisplay.getCustomerDisplayID(),
+                customerDisplay.getCustomerDisplayName(),
+                null,
+                null
+        );
+
+        Disposable disposable = disconnectServerIfConnected(serviceInfo)
+                .andThen(handleSocketConnection(customerDisplay, listener))
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        listener::onTroubleshootCompleted,
+                        throwable -> handleTroubleshootError(throwable, listener)
+                );
+        compositeDisposable.add(disposable);
+    }
+
+    @Override
     public void disposeCustomerDisplayManager() {
         compositeDisposable.clear();
     }
@@ -235,5 +258,75 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                 emitter.onComplete();
             }
         });
+    }
+
+    private Single<ServiceInfo> searchForCustomerDisplay(CustomerDisplay customerDisplay, OnTroubleshootListener listener) {
+        return Single.<ServiceInfo>create(emitter -> {
+            networkServiceDiscoveryManager.startSearchForServices(new INetworkServiceDiscoveryManager.SearchListener() {
+                @Override
+                public void onSearchStarted() {
+                    listener.onScanningForCustomerDisplays();
+                }
+
+                @Override
+                public void onSearchCompleted() {
+                    if (!emitter.isDisposed()) {
+                        emitter.onError(new Exception("Sorry, we couldn't find the customer display"));
+                    }
+//                    listener.onTroubleshootFailed("Cannot find customer display");
+                }
+
+                @Override
+                public void onSearchFailed(String errorMessage) {
+                    emitter.onError(new Exception("Search failed due to: " + errorMessage));
+                    listener.onTroubleshootFailed("Error occurred while searching for customer display");
+                }
+
+                @Override
+                public void onServiceFound(ServiceInfo foundServiceInfo) {
+                    Log.d("CustomerDisplayManager", "Service found: " + foundServiceInfo.getServerId());
+                    if (foundServiceInfo.getServerId().equals(customerDisplay.getCustomerDisplayID())) {
+                        emitter.onSuccess(foundServiceInfo);
+                        listener.onCustomerDisplayFound();
+                        networkServiceDiscoveryManager.stopSearchForServices();
+                    }
+                }
+            }, NetworkConstants.TROUBLESHOOTING_TIMEOUT);
+        }).subscribeOn(AndroidSchedulers.mainThread());
+    }
+
+    private Completable handleSocketConnection(CustomerDisplay customerDisplay, OnTroubleshootListener listener) {
+        return multicastManager.sendMessage("all_devices." + NetworkConstants.TURN_ON_ALL_DEVICES_COMMAND)
+                .andThen(searchForCustomerDisplay(customerDisplay, listener))
+                .flatMapCompletable(newServiceInfo -> connectToService(newServiceInfo, customerDisplay, listener));
+    }
+
+    private Completable connectToService(ServiceInfo newServiceInfo, CustomerDisplay customerDisplay, OnTroubleshootListener listener) {
+        return socketConnectionManager.connectToServer(newServiceInfo.getIpAddress(), serverPort)
+                .doOnSubscribe(disposable -> listener.onAttemptingToConnect())
+                .doOnSuccess(newSocket -> connectedServers.add(new Pair<>(newServiceInfo, newSocket)))
+                .ignoreElement()
+                .andThen(updateCustomerDisplay(newServiceInfo, customerDisplay).doOnSubscribe(d -> listener.onSavingCustomerDisplay()));
+    }
+
+    private Completable updateCustomerDisplay(ServiceInfo newServiceInfo, CustomerDisplay customerDisplay) {
+        CustomerDisplay updatedCustomerDisplay = new CustomerDisplay(
+                newServiceInfo.getServerId(),
+                newServiceInfo.getDeviceName(),
+                newServiceInfo.getIpAddress(),
+                customerDisplay.getIsActivated()
+        );
+        return connectedDisplaysManager.updateCustomerDisplay(updatedCustomerDisplay).ignoreElement()
+                .doOnComplete(() -> {
+                    Log.d("CustomerDisplayManager", "Customer display updated: " + updatedCustomerDisplay.getCustomerDisplayID());
+                    Log.d("CustomerDisplayManager", "Customer display updated: " + updatedCustomerDisplay.getCustomerDisplayName());
+                    Log.d("CustomerDisplayManager", "Customer display updated: " + updatedCustomerDisplay.getCustomerDisplayIpAddress());
+                });
+
+    }
+
+    private void handleTroubleshootError(Throwable throwable, OnTroubleshootListener listener) {
+        Log.e("CustomerDisplayManager", "Error starting troubleshooting: " + throwable);
+        listener.onTroubleshootFailed(throwable.getMessage());
     }
 }

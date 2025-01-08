@@ -37,7 +37,7 @@
 
             <TextView
                 android:id="@+id/customer_display_ip_address"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Unreachable" />
         </LinearLayout>

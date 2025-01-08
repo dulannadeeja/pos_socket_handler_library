@@ -21,6 +21,7 @@ public interface ICustomerDisplayManager {
     void removeConnectedDisplay(String customerDisplayId, RemoveCustomerDisplayListener listener);
     void getConnectedDisplays(GetConnectedDisplaysListener listener);
     void toggleCustomerDisplayActivation(String customerDisplayId,OnCustomerDisplayActivationToggleListener listener);
+    void startTroubleShooting(CustomerDisplay customerDisplay, OnTroubleshootListener listener);
     void disposeCustomerDisplayManager();
 
 
@@ -47,5 +48,14 @@ public interface ICustomerDisplayManager {
         void onConnectionRequestApproved(ServiceInfo serviceInfo);
         void onConnectionRequestRejected();
         void onPairingServerFailed(String message);
+    }
+
+    interface OnTroubleshootListener{
+        void onScanningForCustomerDisplays();
+        void onCustomerDisplayFound();
+        void onAttemptingToConnect();
+        void onSavingCustomerDisplay();
+        void onTroubleshootCompleted();
+        void onTroubleshootFailed(String message);
     }
 }
