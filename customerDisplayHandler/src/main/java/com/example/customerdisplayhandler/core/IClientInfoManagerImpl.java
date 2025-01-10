@@ -1,8 +1,8 @@
-package com.example.customerdisplayhandler.core.network;
+package com.example.customerdisplayhandler.core;
 
 import android.util.Log;
 
-import com.example.customerdisplayhandler.core.interfaces.ClientInfoManager;
+import com.example.customerdisplayhandler.core.interfaces.IClientInfoManager;
 import com.example.customerdisplayhandler.helpers.IPManager;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
 import com.example.customerdisplayhandler.helpers.ISharedPrefManager;
@@ -15,12 +15,12 @@ import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 
-public class ClientInfoManagerImpl implements ClientInfoManager {
+public class IClientInfoManagerImpl implements IClientInfoManager {
     private final ISharedPrefManager ISharedPrefManager;
     private final IPManager ipManager;
     private final IJsonUtil jsonUtil;
 
-    public ClientInfoManagerImpl(IPManager ipManager, ISharedPrefManager ISharedPrefManager, IJsonUtil jsonUtil) {
+    public IClientInfoManagerImpl(IPManager ipManager, ISharedPrefManager ISharedPrefManager, IJsonUtil jsonUtil) {
         this.ipManager = ipManager;
         this.ISharedPrefManager = ISharedPrefManager;
         this.jsonUtil = jsonUtil;

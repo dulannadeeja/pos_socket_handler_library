@@ -41,4 +41,6 @@ dependencies {
 
     // Added dependencies
     implementation libs.gson
+    implementation libs.rxjava
+    implementation libs.rxandroid
 }

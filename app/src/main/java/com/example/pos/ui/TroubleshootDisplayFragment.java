@@ -7,6 +7,7 @@ import androidx.fragment.app.Fragment;
 
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,8 +15,11 @@ import android.widget.TextView;
 
 import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
+import com.example.customerdisplayhandler.shared.OnTroubleshootListener;
 import com.example.pos.App;
 import com.example.pos.R;
+
+import java.util.List;
 
 
 public class TroubleshootDisplayFragment extends DialogFragment {
@@ -64,7 +68,7 @@ public class TroubleshootDisplayFragment extends DialogFragment {
 
         troubleshootingStatusTv = view.findViewById(R.id.troubleshooting_status_tv);
 
-        customerDisplayManager.startTroubleShooting(customerDisplay, new ICustomerDisplayManager.OnTroubleshootListener() {
+        customerDisplayManager.startManualTroubleshooting(customerDisplay, new OnTroubleshootListener() {
             @Override
             public void onScanningForCustomerDisplays() {
                 if (isAdded()) {

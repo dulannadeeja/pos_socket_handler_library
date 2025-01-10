@@ -1,4 +1,4 @@
-package com.example.customerdisplayhandler.helpers;
+package com.example.customerdisplayhandler.core.interfaces;
 
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 

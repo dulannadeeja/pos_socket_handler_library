@@ -1,7 +1,9 @@
-package com.example.customerdisplayhandler.helpers;
+package com.example.customerdisplayhandler.core;
 
 import android.util.Log;
 
+import com.example.customerdisplayhandler.core.interfaces.IConnectedDisplaysRepository;
+import com.example.customerdisplayhandler.helpers.ISharedPrefManager;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
 import com.example.customerdisplayhandler.utils.SharedPrefLabels;

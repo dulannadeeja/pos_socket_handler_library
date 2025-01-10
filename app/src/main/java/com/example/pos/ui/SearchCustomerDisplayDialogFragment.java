@@ -109,11 +109,13 @@ public class SearchCustomerDisplayDialogFragment extends DialogFragment {
             @Override
             public void onServiceFound(ServiceInfo serviceInfo) {
                 requireActivity().runOnUiThread(() -> {
-                    // Check if the service is already in the list
-                    boolean isAlreadyInList = searchResults.stream().anyMatch(existingServiceInfo -> existingServiceInfo.getServerId().equals(serviceInfo.getServerId()));
-                    if (!isAlreadyInList) {
-                        searchResults.add(serviceInfo);
-                        searchListAdapter.updateSearchResults(searchResults);
+                    if(isAdded()){
+                        // Check if the service is already in the list
+                        boolean isAlreadyInList = searchResults.stream().anyMatch(existingServiceInfo -> existingServiceInfo.getServerId().equals(serviceInfo.getServerId()));
+                        if (!isAlreadyInList) {
+                            searchResults.add(serviceInfo);
+                            searchListAdapter.updateSearchResults(searchResults);
+                        }
                     }
                 });
             }

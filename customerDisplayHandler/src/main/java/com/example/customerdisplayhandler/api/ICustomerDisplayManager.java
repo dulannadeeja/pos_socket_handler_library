@@ -1,7 +1,10 @@
 package com.example.customerdisplayhandler.api;
 
-import com.example.customerdisplayhandler.core.interfaces.IConnectedServerManager;
+import android.util.Pair;
+
 import com.example.customerdisplayhandler.core.interfaces.INetworkServiceDiscoveryManager;
+import com.example.customerdisplayhandler.shared.OnPairingServerListener;
+import com.example.customerdisplayhandler.shared.OnTroubleshootListener;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 
@@ -13,15 +16,16 @@ import io.reactivex.rxjava3.core.Completable;
 public interface ICustomerDisplayManager {
     void startSearchForCustomerDisplays(INetworkServiceDiscoveryManager.SearchListener searchListener);
     void stopSearchForCustomerDisplays();
-    Completable startListeningForServerMessages(String serverId, Socket socket);
-    void startPairingServer(ServiceInfo serviceInfo, OnPairingServerListener listener);
+    void startListeningForServerMessages(String serverId, Socket socket);
+    Completable startPairingCustomerDisplay(ServiceInfo serviceInfo, OnPairingServerListener listener);
     void stopPairingServer();
     void sendMulticastMessage(String message);
     void addConnectedDisplay(String customerDisplayId, String customerDisplayName, String customerDisplayIpAddress,AddCustomerDisplayListener listener);
     void removeConnectedDisplay(String customerDisplayId, RemoveCustomerDisplayListener listener);
     void getConnectedDisplays(GetConnectedDisplaysListener listener);
     void toggleCustomerDisplayActivation(String customerDisplayId,OnCustomerDisplayActivationToggleListener listener);
-    void startTroubleShooting(CustomerDisplay customerDisplay, OnTroubleshootListener listener);
+    void startManualTroubleshooting(CustomerDisplay customerDisplay, OnTroubleshootListener listener);
+    void sendUpdatesToCustomerDisplays(String data,OnSendUpdatesListener listener);
     void disposeCustomerDisplayManager();
 
 
@@ -39,23 +43,14 @@ public interface ICustomerDisplayManager {
     }
     interface OnCustomerDisplayActivationToggleListener {
         void onCustomerDisplayActivated();
+
         void onCustomerDisplayDeactivated();
+
         void onCustomerDisplayActivationToggleFailed(String errorMessage);
     }
-    interface OnPairingServerListener{
-        void onPairingServerStarted();
-        void onConnectionRequestSent();
-        void onConnectionRequestApproved(ServiceInfo serviceInfo);
-        void onConnectionRequestRejected();
-        void onPairingServerFailed(String message);
-    }
 
-    interface OnTroubleshootListener{
-        void onScanningForCustomerDisplays();
-        void onCustomerDisplayFound();
-        void onAttemptingToConnect();
-        void onSavingCustomerDisplay();
-        void onTroubleshootCompleted();
-        void onTroubleshootFailed(String message);
+    interface OnSendUpdatesListener{
+        void onUpdatesSent();
+        void onUpdatesSendFailed(List<Pair<CustomerDisplay,String>> errors);
     }
 }
