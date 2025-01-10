@@ -45,50 +45,60 @@ public class PairingViewModel extends ViewModel {
         this.customerDisplayManager = customerDisplayManager;
     }
 
-    public void startPairing(ServiceInfo serviceInfo) {
-        compositeDisposable.add(customerDisplayManager.startPairingCustomerDisplay(serviceInfo, new WeakPairingServerListener(this))
-                .subscribe(() -> {
-                    Log.d("PairingViewModel", "Pairing server started");
-                }, throwable -> {
-                    Log.e("PairingViewModel", "Pairing server failed", throwable);
-                }));
+    public void startPairing(ServiceInfo serviceInfo, OnPairingCompletedListener onPairingCompletedListener) {
+        customerDisplayManager.startPairingCustomerDisplay(serviceInfo, new WeakPairingServerListener(this, onPairingCompletedListener));
+    }
+
+    public interface OnPairingCompletedListener {
+        void onPairingCompleted(ServiceInfo serviceInfo);
     }
 
     private static class WeakPairingServerListener implements OnPairingServerListener {
 
         private final WeakReference<PairingViewModel> viewModelRef;
+        private final OnPairingCompletedListener onPairingCompletedListener;
 
-        WeakPairingServerListener(PairingViewModel viewModel) {
+        WeakPairingServerListener(PairingViewModel viewModel, OnPairingCompletedListener onPairingCompletedListener) {
             this.viewModelRef = new WeakReference<>(viewModel);
+            this.onPairingCompletedListener = onPairingCompletedListener;
         }
 
         @Override
         public void onPairingServerStarted() {
             PairingViewModel viewModel = viewModelRef.get();
-            if (viewModel != null) {
+            if (viewModel != null && viewModel.uiHandler != null) {
                 viewModel.uiHandler.post(() -> {
-                    viewModel.pairingStatus.setValue("Searching for customer display...");
+                    viewModel.pairingStatus.setValue("Please wait while we looking for customer display...");
                 });
+            }
+        }
+
+        @Override
+        public void onCustomerDisplayFound() {
+            PairingViewModel viewModel = viewModelRef.get();
+            if (viewModel != null && viewModel.uiHandler != null) {
+                viewModel.uiHandler.postDelayed(() -> {
+                    viewModel.pairingStatus.setValue("Customer display found, sending connection request...");
+                }, 2000);
             }
         }
 
         @Override
         public void onConnectionRequestSent() {
             PairingViewModel viewModel = viewModelRef.get();
-            if (viewModel != null) {
+            if (viewModel != null && viewModel.uiHandler != null) {
                 viewModel.uiHandler.postDelayed(() -> {
-                    viewModel.pairingStatus.setValue("Connection request sent, waiting for approval...");
-                }, 2000);
+                    viewModel.pairingStatus.setValue("Connection request sent to customer display, waiting for approval...");
+                }, 4000);
             }
         }
 
         @Override
         public void onConnectionRequestApproved(ServiceInfo serviceInfo) {
             PairingViewModel viewModel = viewModelRef.get();
-            if (viewModel != null) {
+            if (viewModel != null && viewModel.uiHandler != null) {
                 viewModel.uiHandler.postDelayed(() -> {
-                    viewModel.pairingStatus.setValue("Connection approval received from customer display...");
-                    viewModel.onCustomerDisplayConnected(serviceInfo);
+                    viewModel.pairingStatus.setValue("Please wait while we establishing connection with customer display...");
                 }, 2000);
             }
         }
@@ -96,27 +106,33 @@ public class PairingViewModel extends ViewModel {
         @Override
         public void onConnectionRequestRejected() {
             PairingViewModel viewModel = viewModelRef.get();
-            if (viewModel != null) {
-                viewModel.uiHandler.post(() -> {
+            if (viewModel != null && viewModel.uiHandler != null) {
+                viewModel.uiHandler.postDelayed(() -> {
                     viewModel.pairingStatus.setValue("Connection request rejected by customer display...");
-                });
+                }, 2000);
+            }
+        }
+
+        @Override
+        public void onSavedEstablishedConnection(ServiceInfo serviceInfo) {
+            PairingViewModel viewModel = viewModelRef.get();
+            if (viewModel != null && viewModel.uiHandler != null) {
+                viewModel.uiHandler.postDelayed(() -> {
+                    viewModel.pairingStatus.setValue("All set, customer display connected successfully...");
+                    onPairingCompletedListener.onPairingCompleted(serviceInfo);
+                }, 2000);
             }
         }
 
         @Override
         public void onPairingServerFailed(String message) {
             PairingViewModel viewModel = viewModelRef.get();
-            if (viewModel != null) {
+            if (viewModel != null && viewModel.uiHandler != null) {
                 viewModel.uiHandler.post(() -> {
                     viewModel.pairingStatus.setValue(message);
                 });
             }
         }
-    }
-
-    private void onCustomerDisplayConnected(ServiceInfo serviceInfo) {
-        // Handle the display connection logic in the ViewModel
-        // Notify the fragment or activity as necessary
     }
 
     public void stopPairing() {

@@ -4,8 +4,10 @@ import com.example.customerdisplayhandler.model.ServiceInfo;
 
 public interface OnPairingServerListener {
     void onPairingServerStarted();
+    void onCustomerDisplayFound();
     void onConnectionRequestSent();
-    void onConnectionRequestApproved(ServiceInfo serviceInfo);
     void onConnectionRequestRejected();
+    void onConnectionRequestApproved(ServiceInfo serviceInfo);
+    void onSavedEstablishedConnection(ServiceInfo serviceInfo);
     void onPairingServerFailed(String message);
 }

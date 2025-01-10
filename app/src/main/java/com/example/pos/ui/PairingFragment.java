@@ -1,6 +1,7 @@
 package com.example.pos.ui;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,6 +15,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.pos.App;
+import com.example.pos.MainActivity;
 import com.example.pos.R;
 
 public class PairingFragment extends DialogFragment {
@@ -67,7 +69,24 @@ public class PairingFragment extends DialogFragment {
 
         // Start pairing process
         pairingViewModel.setCustomerDisplayManager(customerDisplayManager);
-        pairingViewModel.startPairing(serviceInfo);
+        pairingViewModel.startPairing(serviceInfo, this::onCustomerDisplayConnected);
+    }
+
+    private void onCustomerDisplayConnected(ServiceInfo serviceInfo) {
+        Log.d(TAG, "Customer display connected: " + serviceInfo.getDeviceName());
+        MainActivity mainActivity = (MainActivity) requireActivity();
+        FragmentManager fragmentManager = requireActivity().getSupportFragmentManager();
+        AddCustomerDisplayFragment addCustomerDisplayFragment = (AddCustomerDisplayFragment) fragmentManager.findFragmentByTag(AddCustomerDisplayFragment.TAG);
+        CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = (CustomerDisplaySettingsDialogFragment) fragmentManager.findFragmentByTag(CustomerDisplaySettingsDialogFragment.TAG);
+
+        if (addCustomerDisplayFragment != null) {
+            addCustomerDisplayFragment.dismiss();
+        }
+        if (customerDisplaySettingsDialogFragment != null) {
+            customerDisplaySettingsDialogFragment.refreshConnectedDisplays();
+        }
+        dismiss();
+        mainActivity.showToast(serviceInfo.getDeviceName() + " connected successfully!");
     }
 
     @Override

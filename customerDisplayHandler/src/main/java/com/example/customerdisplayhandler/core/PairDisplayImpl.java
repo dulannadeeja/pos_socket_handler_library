@@ -1,12 +1,15 @@
 package com.example.customerdisplayhandler.core;
 
+import android.graphics.drawable.Icon;
 import android.util.Log;
-import android.util.Pair;
 
+import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.constants.NetworkConstants;
 import com.example.customerdisplayhandler.core.interfaces.IClientInfoManager;
+import com.example.customerdisplayhandler.core.interfaces.IConnectedDisplaysRepository;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageListener;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageSender;
+import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.shared.OnPairingServerListener;
 import com.example.customerdisplayhandler.core.interfaces.IPairDisplay;
 import com.example.customerdisplayhandler.core.interfaces.ISocketsManager;
@@ -15,17 +18,10 @@ import com.example.customerdisplayhandler.model.ConnectionApproval;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.model.SocketMessageBase;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
-
-import java.io.EOFException;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
-import io.reactivex.rxjava3.core.SingleEmitter;
-import io.reactivex.rxjava3.disposables.CompositeDisposable;
-import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 
 public class PairDisplayImpl implements IPairDisplay {
@@ -36,13 +32,21 @@ public class PairDisplayImpl implements IPairDisplay {
     private IJsonUtil jsonUtil;
     private ITcpMessageSender tcpMessageSender;
     private ITcpMessageListener tcpMessageListener;
+    private IConnectedDisplaysRepository connectedDisplaysRepository;
 
-    public PairDisplayImpl(ISocketsManager socketsManager, IClientInfoManager clientInfoManager, IJsonUtil jsonUtil, ITcpMessageSender tcpMessageSender, ITcpMessageListener tcpMessageListener) {
+    public PairDisplayImpl(ISocketsManager socketsManager,
+                           IClientInfoManager clientInfoManager,
+                           IJsonUtil jsonUtil,
+                           ITcpMessageSender tcpMessageSender,
+                           ITcpMessageListener tcpMessageListener,
+                           IConnectedDisplaysRepository connectedDisplaysRepository
+    ) {
         this.socketsManager = socketsManager;
         this.clientInfoManager = clientInfoManager;
         this.jsonUtil = jsonUtil;
         this.tcpMessageSender = tcpMessageSender;
         this.tcpMessageListener = tcpMessageListener;
+        this.connectedDisplaysRepository = connectedDisplaysRepository;
     }
 
     public Completable startDisplayPairing(Socket connectedSocket, ServiceInfo serviceInfo, OnPairingServerListener listener) {
@@ -51,16 +55,27 @@ public class PairDisplayImpl implements IPairDisplay {
                 tcpMessageListener.startListening(serviceInfo.getServerId(), connectedSocket),
                 clientInfoManager.getClientInfo()
                 .flatMapCompletable(clientInfo -> {
-                    socketsManager.addConnectedSocket(connectedSocket, serviceInfo);
                     return getConnectionApprovalStatus(serviceInfo, connectedSocket, clientInfo, listener)
-                            .doOnSuccess(isApproved -> {
-                                if (isApproved) {
+                            .flatMapCompletable(isApproved ->{
+                                if (isApproved){
                                     listener.onConnectionRequestApproved(serviceInfo);
-                                } else {
+                                    CustomerDisplay customerDisplay = new CustomerDisplay(serviceInfo.getServerId(),serviceInfo.getDeviceName(),serviceInfo.getIpAddress(),true);
+                                    return connectedDisplaysRepository.getCustomerDisplayById(serviceInfo.getServerId())
+                                            .defaultIfEmpty(new CustomerDisplay(null,null,null,false))
+                                            .flatMapCompletable(existingCustomerDisplay -> {
+                                                if (existingCustomerDisplay != null && existingCustomerDisplay.getCustomerDisplayID() != null) {
+                                                    return connectedDisplaysRepository.updateCustomerDisplay(customerDisplay)
+                                                            .ignoreElement();
+                                                } else {
+                                                    return connectedDisplaysRepository.addCustomerDisplay(customerDisplay);
+                                                }
+                                            })
+                                            .doOnComplete(() -> listener.onSavedEstablishedConnection(serviceInfo));
+                                }else{
                                     listener.onConnectionRequestRejected();
+                                    return Completable.complete();
                                 }
-                            })
-                            .ignoreElement();
+                            });
                 }))
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread());

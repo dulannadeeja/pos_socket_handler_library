@@ -17,7 +17,7 @@ public interface ICustomerDisplayManager {
     void startSearchForCustomerDisplays(INetworkServiceDiscoveryManager.SearchListener searchListener);
     void stopSearchForCustomerDisplays();
     void startListeningForServerMessages(String serverId, Socket socket);
-    Completable startPairingCustomerDisplay(ServiceInfo serviceInfo, OnPairingServerListener listener);
+    void startPairingCustomerDisplay(ServiceInfo serviceInfo, OnPairingServerListener listener);
     void stopPairingServer();
     void sendMulticastMessage(String message);
     void addConnectedDisplay(String customerDisplayId, String customerDisplayName, String customerDisplayIpAddress,AddCustomerDisplayListener listener);
