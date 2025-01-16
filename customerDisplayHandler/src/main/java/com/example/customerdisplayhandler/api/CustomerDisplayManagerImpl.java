@@ -5,9 +5,11 @@ import android.util.Log;
 import android.util.Pair;
 
 import com.example.customerdisplayhandler.constants.NetworkConstants;
+import com.example.customerdisplayhandler.core.CustomerDisplayUpdatesSenderImpl;
 import com.example.customerdisplayhandler.core.PairDisplayImpl;
 import com.example.customerdisplayhandler.core.TroubleshootDisplayImpl;
 import com.example.customerdisplayhandler.core.interfaces.IClientInfoManager;
+import com.example.customerdisplayhandler.core.interfaces.ICustomerDisplayUpdatesSender;
 import com.example.customerdisplayhandler.core.interfaces.IMulticastManager;
 import com.example.customerdisplayhandler.core.interfaces.INetworkServiceDiscoveryManager;
 import com.example.customerdisplayhandler.core.interfaces.IPairDisplay;
@@ -15,6 +17,7 @@ import com.example.customerdisplayhandler.core.interfaces.ISocketsManager;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageListener;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageSender;
 import com.example.customerdisplayhandler.core.interfaces.ITroubleshootDisplay;
+import com.example.customerdisplayhandler.model.DisplayUpdates;
 import com.example.customerdisplayhandler.shared.OnPairingServerListener;
 import com.example.customerdisplayhandler.shared.OnTroubleshootListener;
 import com.example.customerdisplayhandler.core.network.MulticastManagerImpl;
@@ -40,13 +43,13 @@ import java.io.IOException;
 import java.net.Socket;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
-import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 
 public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
+    private static final String TAG = CustomerDisplayManagerImpl.class.getSimpleName();
     private static volatile CustomerDisplayManagerImpl INSTANCE;
     private int serverPort;
     private IJsonUtil jsonUtil;
@@ -62,7 +65,10 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     private ITcpMessageListener tcpMessageListener;
     private ITcpMessageSender tcpMessageSender;
     private ITroubleshootDisplay troubleshootDisplay;
+    private ICustomerDisplayUpdatesSender customerDisplayUpdatesSender;
     private volatile CompositeDisposable pairingCompositeDisposable = new CompositeDisposable();
+    private volatile CompositeDisposable troubleshootingCompositeDisposable = new CompositeDisposable();
+    private volatile CompositeDisposable sendUpdatesCompositeDisposable = new CompositeDisposable();
     private volatile CompositeDisposable compositeDisposable = new CompositeDisposable();
 
     public static synchronized CustomerDisplayManagerImpl newInstance(Context context, int serverPort) {
@@ -88,6 +94,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
         tcpMessageSender = new TcpMessageSenderImpl();
         pairDisplay = new PairDisplayImpl(socketsManager, clientInfoManager, jsonUtil, tcpMessageSender, tcpMessageListener, connectedDisplaysRepository);
         troubleshootDisplay = new TroubleshootDisplayImpl(tcpConnector, socketsManager, multicastManager, networkServiceDiscoveryManager, connectedDisplaysRepository);
+        customerDisplayUpdatesSender = new CustomerDisplayUpdatesSenderImpl(troubleshootDisplay, socketsManager, serverPort, connectedDisplaysRepository, tcpMessageSender, tcpConnector,clientInfoManager,jsonUtil);
     }
 
     @Override
@@ -105,14 +112,16 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
 
     @Override
     public void startListeningForServerMessages(String serverId, Socket socket) {
-        compositeDisposable.add(tcpMessageListener.startListening(serverId, socket)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(() -> {
-                    Log.d("CustomerDisplayManager", "Listening Stopped for server: " + serverId);
-                }, throwable -> {
-                    Log.e("CustomerDisplayManager", "Error receiving message: " + throwable.getMessage());
-                }));
+        compositeDisposable.add(
+                tcpMessageListener.startListening(serverId, socket)
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(() -> {
+                            Log.d("CustomerDisplayManager", "Listening Stopped for server: " + serverId);
+                        }, throwable -> {
+                            Log.e("CustomerDisplayManager", "Error receiving message: " + throwable.getMessage());
+                        })
+        );
 
     }
 
@@ -216,12 +225,53 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
 
     @Override
     public void startManualTroubleshooting(CustomerDisplay customerDisplay, OnTroubleshootListener listener) {
-
+        troubleshootingCompositeDisposable.add(
+                troubleshootDisplay.startManualTroubleshooting(customerDisplay, listener)
+                        .doOnSubscribe(disposable -> Log.i(TAG, customerDisplay.getCustomerDisplayName() + " troubleshooting started"))
+                        .doOnDispose(() -> Log.i(TAG, customerDisplay.getCustomerDisplayName() + " troubleshooting subscription disposed"))
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(() -> {
+                            Log.i(TAG, customerDisplay.getCustomerDisplayName() + " troubleshooting completed");
+                        }, throwable -> {
+                            Log.e(TAG, customerDisplay.getCustomerDisplayName() + " troubleshooting failed: " + throwable);
+                            listener.onTroubleshootFailed(throwable.getMessage());
+                        })
+        );
     }
 
     @Override
-    public void sendUpdatesToCustomerDisplays(String data, OnSendUpdatesListener listener) {
+    public void stopManualTroubleshooting() {
+        troubleshootingCompositeDisposable.clear();
+        networkServiceDiscoveryManager.stopSearchForServices();
+    }
 
+    @Override
+    public void sendUpdatesToCustomerDisplays(DisplayUpdates displayUpdates, OnSendUpdatesListener listener) {
+        sendUpdatesCompositeDisposable.add(
+               customerDisplayUpdatesSender.sendUpdatesToCustomerDisplays(displayUpdates)
+                       .subscribeOn(Schedulers.io())
+                       .observeOn(AndroidSchedulers.mainThread())
+                       .subscribe(
+                               customerDisplaysWithResults -> {
+                                   Log.i(TAG, "Updates sent to customer displays: " + jsonUtil.toJson(customerDisplaysWithResults));
+                                   if (customerDisplaysWithResults.isEmpty()) {
+                                       listener.onSystemError("No customer displays found");
+                                   } else {
+                                       boolean allUpdatesSent = customerDisplaysWithResults.stream().allMatch(Pair -> Pair.second);
+                                        if (allUpdatesSent) {
+                                             listener.onAllUpdatesSentWithSuccess();
+                                        } else {
+                                            listener.onSomeUpdatesFailed(customerDisplaysWithResults);
+                                        }
+                                   }
+                               },
+                               throwable -> {
+                                   Log.e(TAG, "Error sending updates to customer displays: " + throwable.getMessage());
+                                   listener.onSystemError(throwable.getMessage());
+                               }
+                       )
+        );
     }
 
     @Override

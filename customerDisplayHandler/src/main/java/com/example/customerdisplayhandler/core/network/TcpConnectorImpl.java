@@ -4,7 +4,9 @@ import android.util.Log;
 
 import com.example.customerdisplayhandler.core.interfaces.ITcpConnector;
 
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketAddress;
 
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
@@ -12,15 +14,14 @@ import io.reactivex.rxjava3.schedulers.Schedulers;
 
 public class TcpConnectorImpl implements ITcpConnector {
     private static final String TAG = TcpConnectorImpl.class.getSimpleName();
+
     @Override
     public Single<Socket> connectToServer(String serverIPAddress, int serverPort) {
         return Single.<Socket>create(emitter -> {
                     try {
-                        Log.d(TAG, "comes here");
                         Socket socket = new Socket(serverIPAddress, serverPort);
-                        Log.d(TAG, "Comes here");
                         socket.setKeepAlive(true);
-                        Log.d(TAG, "Connected to server: " + serverIPAddress + ":" + serverPort);
+                        Log.i(TAG, "Connected to server: " + serverIPAddress + ":" + serverPort);
                         emitter.onSuccess(socket);
                     } catch (Exception e) {
                         Log.e(TAG, "Error connecting to server: " + e.getMessage());
@@ -32,6 +33,29 @@ public class TcpConnectorImpl implements ITcpConnector {
                 })
                 .subscribeOn(Schedulers.io()) // Perform the connection on an IO thread
                 .observeOn(Schedulers.io()); // Observe the result on the same IO thread
+    }
+
+    @Override
+    public Single<Socket> tryToConnectWithingTimeout(String serverIPAddress, int serverPort, int timeoutInMillis) {
+        return Single.<Socket>create(emitter -> {
+                    try {
+                        Socket socket = new Socket();
+                        SocketAddress socketAddress = new InetSocketAddress(serverIPAddress, serverPort);
+                        socket.connect(socketAddress, timeoutInMillis);
+                        socket.setKeepAlive(true);
+                        Log.i(TAG, "Connected to server: " + serverIPAddress + ":" + serverPort);
+                        emitter.onSuccess(socket);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error connecting to server: " + e.getMessage());
+                        Exception newException = new Exception("Error occurred while connecting to customer display");
+                        if (!emitter.isDisposed()) {
+                            emitter.onError(newException);
+                        }
+                    }
+                })
+                .subscribeOn(Schedulers.io()) // Perform the connection on an IO thread
+                .observeOn(Schedulers.io()); // Observe the result on the same IO thread
+
     }
 
     @Override

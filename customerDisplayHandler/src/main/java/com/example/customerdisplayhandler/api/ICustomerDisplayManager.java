@@ -3,6 +3,7 @@ package com.example.customerdisplayhandler.api;
 import android.util.Pair;
 
 import com.example.customerdisplayhandler.core.interfaces.INetworkServiceDiscoveryManager;
+import com.example.customerdisplayhandler.model.DisplayUpdates;
 import com.example.customerdisplayhandler.shared.OnPairingServerListener;
 import com.example.customerdisplayhandler.shared.OnTroubleshootListener;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
@@ -25,7 +26,8 @@ public interface ICustomerDisplayManager {
     void getConnectedDisplays(GetConnectedDisplaysListener listener);
     void toggleCustomerDisplayActivation(String customerDisplayId,OnCustomerDisplayActivationToggleListener listener);
     void startManualTroubleshooting(CustomerDisplay customerDisplay, OnTroubleshootListener listener);
-    void sendUpdatesToCustomerDisplays(String data,OnSendUpdatesListener listener);
+    void stopManualTroubleshooting();
+    void sendUpdatesToCustomerDisplays(DisplayUpdates displayUpdates, OnSendUpdatesListener listener);
     void disposeCustomerDisplayManager();
 
 
@@ -50,7 +52,8 @@ public interface ICustomerDisplayManager {
     }
 
     interface OnSendUpdatesListener{
-        void onUpdatesSent();
-        void onUpdatesSendFailed(List<Pair<CustomerDisplay,String>> errors);
+        void onAllUpdatesSentWithSuccess();
+        void onSomeUpdatesFailed(List<Pair<CustomerDisplay,Boolean>> failedCustomerDisplays);
+        void onSystemError(String errorMessage);
     }
 }

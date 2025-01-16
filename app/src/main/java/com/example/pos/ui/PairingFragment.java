@@ -60,7 +60,6 @@ public class PairingFragment extends DialogFragment {
         // Observe pairing status changes
         pairingViewModel.getPairingStatus().observe(getViewLifecycleOwner(), status -> {
             pairingStatusTextView.setText(status);
-            // You can add more UI updates based on the status if needed
         });
 
         // Get the customer display manager

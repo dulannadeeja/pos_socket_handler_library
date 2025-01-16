@@ -14,7 +14,6 @@ import android.view.ViewGroup;
 import android.widget.ProgressBar;
 
 import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
-import com.example.customerdisplayhandler.api.CustomerDisplayManagerImpl;
 import com.example.customerdisplayhandler.core.interfaces.INetworkServiceDiscoveryManager;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.pos.App;

@@ -4,6 +4,8 @@ import android.os.Bundle;
 
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.lifecycle.ViewModelProvider;
 
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -25,11 +27,10 @@ import java.util.List;
 public class TroubleshootDisplayFragment extends DialogFragment {
     public static final String TAG = TroubleshootDisplayFragment.class.getSimpleName();
     private static final String ARG_CUSTOMER_DISPLAY = "customerDisplay";
-    private HandlerThread handlerThread;
-    private Handler backgroundHandler;
     private CustomerDisplay customerDisplay;
     private ICustomerDisplayManager customerDisplayManager;
     private TextView troubleshootingStatusTv;
+    private TroubleshootViewModel troubleshootViewModel;
 
     public static TroubleshootDisplayFragment newInstance(CustomerDisplay customerDisplay) {
         TroubleshootDisplayFragment fragment = new TroubleshootDisplayFragment();
@@ -58,117 +59,35 @@ public class TroubleshootDisplayFragment extends DialogFragment {
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // Initialize the HandlerThread for background tasks
-        handlerThread = new HandlerThread("TroubleshootBackgroundThread");
-        handlerThread.start();
-        backgroundHandler = new Handler(handlerThread.getLooper());
-
         App app = (App) requireActivity().getApplication();
         customerDisplayManager = app.getCustomerDisplayManager();
 
+        // Initialize the ViewModel
+        troubleshootViewModel = new ViewModelProvider(this).get(TroubleshootViewModel.class);
+        troubleshootViewModel.setCustomerDisplayManager(customerDisplayManager);
+        troubleshootViewModel.startTroubleshooting(customerDisplay, () -> {
+            FragmentManager fragmentManager = getParentFragmentManager();
+            CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = (CustomerDisplaySettingsDialogFragment) fragmentManager.findFragmentByTag(CustomerDisplaySettingsDialogFragment.TAG);
+            if (customerDisplaySettingsDialogFragment != null) {
+                customerDisplaySettingsDialogFragment.refreshConnectedDisplays();
+            }
+            FailedCustomerDisplaysFragment failedCustomerDisplaysFragment = (FailedCustomerDisplaysFragment) fragmentManager.findFragmentByTag(FailedCustomerDisplaysFragment.TAG);
+            if (failedCustomerDisplaysFragment != null) {
+                failedCustomerDisplaysFragment.removeFailedDisplay(customerDisplay);
+            }
+        });
+
         troubleshootingStatusTv = view.findViewById(R.id.troubleshooting_status_tv);
 
-        customerDisplayManager.startManualTroubleshooting(customerDisplay, new OnTroubleshootListener() {
-            @Override
-            public void onScanningForCustomerDisplays() {
-                if (isAdded()) {
-                    requireActivity().runOnUiThread(() -> {
-                        troubleshootingStatusTv.setText("Looking for customer displays live on the network, please wait it may take up to 30 seconds...");
-                        troubleshootingStatusTv.setTextColor(requireActivity().getColor(R.color.textSecondaryColor));
-                    });
-                }
-            }
-
-            @Override
-            public void onCustomerDisplayFound() {
-                if (isAdded()) {
-                    requireActivity().runOnUiThread(() -> {
-                        troubleshootingStatusTv.setText("Customer display found. Attempting to connect...");
-                        troubleshootingStatusTv.setTextColor(requireActivity().getColor(R.color.textSecondaryColor));
-                    });
-                }
-            }
-
-            @Override
-            public void onAttemptingToConnect() {
-                runWithDelay(2000, () -> {
-                    if (isAdded()) {
-                        requireActivity().runOnUiThread(() -> {
-                            troubleshootingStatusTv.setText("Attempting to connect to customer display...");
-                            troubleshootingStatusTv.setTextColor(requireActivity().getColor(R.color.textSecondaryColor));
-                        });
-                    }
-                });
-            }
-
-            @Override
-            public void onSavingCustomerDisplay() {
-                runWithDelay(2000, () -> {
-                    if (isAdded()) {
-                        requireActivity().runOnUiThread(() -> {
-                            troubleshootingStatusTv.setText("Saving updated connection info for customer display...");
-                            troubleshootingStatusTv.setTextColor(requireActivity().getColor(R.color.textSecondaryColor));
-                        });
-                    }
-                });
-            }
-
-            @Override
-            public void onTroubleshootCompleted() {
-                runWithDelay(2000, () -> {
-                    if (isAdded()) {
-                        requireActivity().runOnUiThread(() -> {
-                            troubleshootingStatusTv.setText("Troubleshooting completed successfully.");
-                            troubleshootingStatusTv.setTextColor(requireActivity().getColor(R.color.primaryColor));
-                            CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = (CustomerDisplaySettingsDialogFragment) requireActivity().getSupportFragmentManager().findFragmentByTag(CustomerDisplaySettingsDialogFragment.TAG);
-                            if (customerDisplaySettingsDialogFragment != null) {
-                                customerDisplaySettingsDialogFragment.refreshConnectedDisplays();
-                            }
-                        });
-                    }
-                });
-            }
-
-            @Override
-            public void onTroubleshootFailed(String message) {
-                if (isAdded()) {
-                    requireActivity().runOnUiThread(() -> {
-                        troubleshootingStatusTv.setText(message);
-                        troubleshootingStatusTv.setTextColor(requireActivity().getColor(R.color.errorColor));
-                    });
-                }
-            }
+        // Observe troubleshooting status changes
+        troubleshootViewModel.getTroubleshootingStatus().observe(getViewLifecycleOwner(), status -> {
+            troubleshootingStatusTv.setText(status);
         });
-    }
-
-    /**
-     * Runs a task with a specified delay on the background thread.
-     *
-     * @param delayMillis The delay in milliseconds.
-     * @param task        The task to execute after the delay.
-     */
-    private void runWithDelay(long delayMillis, Runnable task) {
-        backgroundHandler.post(() -> {
-            try {
-                Thread.sleep(delayMillis);
-                task.run();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        handlerThread.quit();
-        customerDisplayManager.disposeCustomerDisplayManager();
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        handlerThread.quit();
-        customerDisplayManager.disposeCustomerDisplayManager();
+        troubleshootViewModel.stopTroubleshooting();
     }
 }

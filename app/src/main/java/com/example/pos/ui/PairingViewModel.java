@@ -24,16 +24,11 @@ public class PairingViewModel extends ViewModel {
 
     private ICustomerDisplayManager customerDisplayManager;
     private final MutableLiveData<String> pairingStatus = new MutableLiveData<>();
-    private HandlerThread handlerThread;
-    private Handler backgroundHandler;
     private Handler uiHandler;
     private CompositeDisposable compositeDisposable = new CompositeDisposable();
 
     public PairingViewModel() {
         super();
-        handlerThread = new HandlerThread("PairingBackgroundThread");
-        handlerThread.start();
-        backgroundHandler = new Handler(handlerThread.getLooper());
         uiHandler = new Handler(Looper.getMainLooper());
     }
 
@@ -56,11 +51,11 @@ public class PairingViewModel extends ViewModel {
     private static class WeakPairingServerListener implements OnPairingServerListener {
 
         private final WeakReference<PairingViewModel> viewModelRef;
-        private final OnPairingCompletedListener onPairingCompletedListener;
+        private final WeakReference<OnPairingCompletedListener> onPairingCompletedListener;
 
         WeakPairingServerListener(PairingViewModel viewModel, OnPairingCompletedListener onPairingCompletedListener) {
             this.viewModelRef = new WeakReference<>(viewModel);
-            this.onPairingCompletedListener = onPairingCompletedListener;
+            this.onPairingCompletedListener = new WeakReference<>(onPairingCompletedListener);
         }
 
         @Override
@@ -119,7 +114,10 @@ public class PairingViewModel extends ViewModel {
             if (viewModel != null && viewModel.uiHandler != null) {
                 viewModel.uiHandler.postDelayed(() -> {
                     viewModel.pairingStatus.setValue("All set, customer display connected successfully...");
-                    onPairingCompletedListener.onPairingCompleted(serviceInfo);
+                    OnPairingCompletedListener listener = onPairingCompletedListener.get();
+                    if (listener != null) {
+                        listener.onPairingCompleted(serviceInfo);
+                    }
                 }, 2000);
             }
         }
@@ -135,19 +133,10 @@ public class PairingViewModel extends ViewModel {
         }
     }
 
-    public void stopPairing() {
-        if (handlerThread != null) {
-            handlerThread.quitSafely();
-            handlerThread = null;
-        }
-        backgroundHandler = null;
-        uiHandler = null;
-    }
-
     @Override
     protected void onCleared() {
         super.onCleared();
         compositeDisposable.clear();
-        stopPairing();
+        uiHandler = null;
     }
 }
