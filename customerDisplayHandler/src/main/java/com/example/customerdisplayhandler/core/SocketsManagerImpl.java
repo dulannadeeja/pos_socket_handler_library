@@ -54,7 +54,7 @@ public class SocketsManagerImpl implements ISocketsManager {
 @Override
     public Socket findSocketIfConnected(String serverId) {
         for (Pair<Socket, ServiceInfo> connectedSocket : connectedSockets) {
-            if (connectedSocket.second.getServerId().equals(serverId)) {
+            if (connectedSocket.second.getServerId() != null && connectedSocket.second.getServerId().equals(serverId)) {
                 if (connectedSocket.first.isConnected() && !connectedSocket.first.isClosed()) {
                     return connectedSocket.first;
                 } else{

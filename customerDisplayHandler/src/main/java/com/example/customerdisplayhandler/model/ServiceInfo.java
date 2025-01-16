@@ -30,4 +30,20 @@ public class ServiceInfo implements Serializable {
     public String getConnectedClientID() {
         return connectedClientID;
     }
+
+    public void setServerId(String serverId) {
+        this.serverId = serverId;
+    }
+
+    public void setDeviceName(String deviceName) {
+        this.deviceName = deviceName;
+    }
+
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+
+    public void setConnectedClientID(String connectedClientID) {
+        this.connectedClientID = connectedClientID;
+    }
 }

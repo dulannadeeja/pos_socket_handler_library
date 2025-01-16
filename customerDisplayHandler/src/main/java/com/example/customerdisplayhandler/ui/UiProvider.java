@@ -13,9 +13,4 @@ public class UiProvider {
         view.findViewById(R.id.add_display_fab).setOnClickListener(v -> addNewDisplayFabListener.onClickAddNewDisplayFab());
         return view;
     }
-
-    public static View getAddCustomerDisplayView(LayoutInflater inflater, ViewGroup container) {
-        View view = inflater.inflate(R.layout.add_customer_display_layout, container, false);
-        return view;
-    }
 }
