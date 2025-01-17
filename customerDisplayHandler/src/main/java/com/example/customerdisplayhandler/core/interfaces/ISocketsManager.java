@@ -6,7 +6,7 @@ import io.reactivex.rxjava3.subjects.ReplaySubject;
 
 public interface ISocketsManager {
     void addConnectedSocket(Socket socket, ServiceInfo serviceInfo);
-    Pair<Socket, ServiceInfo> getConnectedSocket(String serverId);
+    Pair<Socket, ServiceInfo> getConnectedSocket(String serverId,String ipAddress);
     void removeConnectedSocket(String serverId);
     Socket findSocketIfConnected(String serverId);
     ReplaySubject<Pair<Socket, ServiceInfo>> getConnectedSocketsSubject();

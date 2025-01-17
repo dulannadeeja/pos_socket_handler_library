@@ -54,34 +54,32 @@ public class PairDisplayImpl implements IPairDisplay {
         return Completable.mergeArray(
                 tcpMessageListener.startListening(serviceInfo.getServerId(), connectedSocket),
                 clientInfoManager.getClientInfo()
-                .flatMapCompletable(clientInfo -> {
-                    return getConnectionApprovalStatus(serviceInfo, connectedSocket, clientInfo, listener)
-                            .flatMapCompletable(isApproved ->{
-                                if (isApproved){
-                                    listener.onConnectionRequestApproved(serviceInfo);
-                                    CustomerDisplay customerDisplay = new CustomerDisplay(serviceInfo.getServerId(),serviceInfo.getDeviceName(),serviceInfo.getIpAddress(),true);
-                                    return connectedDisplaysRepository.getCustomerDisplayById(serviceInfo.getServerId())
-                                            .defaultIfEmpty(new CustomerDisplay(null,null,null,false))
-                                            .flatMapCompletable(existingCustomerDisplay -> {
-                                                if (existingCustomerDisplay != null && existingCustomerDisplay.getCustomerDisplayID() != null) {
-                                                    return connectedDisplaysRepository.updateCustomerDisplay(customerDisplay)
-                                                            .ignoreElement();
-                                                } else {
-                                                    return connectedDisplaysRepository.addCustomerDisplay(customerDisplay);
-                                                }
-                                            })
-                                            .doOnComplete(() -> listener.onSavedEstablishedConnection(serviceInfo));
-                                }else{
-                                    listener.onConnectionRequestRejected();
-                                    return Completable.complete();
-                                }
-                            });
-                }))
+                .flatMapCompletable(clientInfo -> getConnectionApprovalStatus(serviceInfo, connectedSocket, clientInfo, listener)
+                        .flatMapCompletable(connectionApproval ->{
+                            if (connectionApproval != null && connectionApproval.isConnectionApproved() != null && connectionApproval.isConnectionApproved()) {
+                                listener.onConnectionRequestApproved(serviceInfo);
+                                CustomerDisplay customerDisplay = new CustomerDisplay(connectionApproval.getServerID(),serviceInfo.getDeviceName(),connectionApproval.getServerIpAddress(),true);
+                                return connectedDisplaysRepository.getCustomerDisplayById(connectionApproval.getServerID())
+                                        .defaultIfEmpty(new CustomerDisplay(null,null,null,false))
+                                        .flatMapCompletable(existingCustomerDisplay -> {
+                                            if (existingCustomerDisplay != null && existingCustomerDisplay.getCustomerDisplayID() != null) {
+                                                return connectedDisplaysRepository.updateCustomerDisplay(customerDisplay)
+                                                        .ignoreElement();
+                                            } else {
+                                                return connectedDisplaysRepository.addCustomerDisplay(customerDisplay);
+                                            }
+                                        })
+                                        .doOnComplete(() -> listener.onSavedEstablishedConnection(serviceInfo));
+                            }else{
+                                listener.onConnectionRequestRejected();
+                                return Completable.complete();
+                            }
+                        })))
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread());
     }
 
-    private Single<Boolean> getConnectionApprovalStatus(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnPairingServerListener listener) {
+    private Single<ConnectionApproval> getConnectionApprovalStatus(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnPairingServerListener listener) {
         Log.i(TAG, "Starting pairing process with customer display.");
 
         // Send connection approval request and listen for server response
@@ -91,7 +89,7 @@ public class PairDisplayImpl implements IPairDisplay {
                 .andThen(tcpMessageListener.getServerMessageSubject().firstOrError())
                 .map(serverMessage -> {
                     Log.i(TAG, "Message received from server: " + serverMessage.second);
-                    return processConnectionApproval(serverMessage.second).equals("approved");
+                    return processConnectionApproval(serverMessage.second);
                 })
                 .doOnError(e -> Log.e(TAG, "Error during pairing process: " + e.getMessage(), e))
                 .subscribeOn(Schedulers.io());
@@ -107,42 +105,46 @@ public class PairDisplayImpl implements IPairDisplay {
         return jsonUtil.toJson(socketMessageBase);
     }
 
-    private String processConnectionApproval(String rawMessage) {
+    private ConnectionApproval processConnectionApproval(String rawMessage) {
         try {
             if (rawMessage == null || rawMessage.isEmpty()) {
                 Log.e(TAG, "Invalid connection approval message received: " + rawMessage);
-                return "invalid";
+                return createConnectionApproval();
             }
 
             String message = rawMessage.trim();
             if (rawMessage.startsWith(";")) {
-                return "invalid";
+                return createConnectionApproval();
             }
 
             SocketMessageBase socketMessageBase = jsonUtil.toObj(message, SocketMessageBase.class);
 
             if (!isValidSocketMessage(socketMessageBase)) {
                 Log.e(TAG, "Invalid connection approval message structure: " + message);
-                return "invalid";
+                return createConnectionApproval();
             }
 
             if (!NetworkConstants.RESPONSE_CONNECTION_APPROVAL.equals(socketMessageBase.getCommand())) {
                 Log.e(TAG, "Unexpected command received: " + message);
-                return "invalid";
+                return createConnectionApproval();
             }
 
             ConnectionApproval connectionApproval = parseConnectionApproval(socketMessageBase.getData());
             if (connectionApproval != null && connectionApproval.isConnectionApproved() != null) {
-                return connectionApproval.isConnectionApproved() ? "approved" : "rejected";
+                return connectionApproval;
             }
 
             Log.e(TAG, "Connection approval data is null or invalid.");
-            return "invalid";
+            return createConnectionApproval();
 
         } catch (Exception e) {
             Log.e(TAG, "Error processing connection approval: " + e.getMessage(), e);
-            return "invalid";
+            return createConnectionApproval();
         }
+    }
+
+    private ConnectionApproval createConnectionApproval() {
+        return new ConnectionApproval(null, null, null, null);
     }
 
     private ConnectionApproval parseConnectionApproval(Object data) {

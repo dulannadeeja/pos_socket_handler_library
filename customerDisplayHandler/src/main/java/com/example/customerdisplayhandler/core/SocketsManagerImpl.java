@@ -29,16 +29,21 @@ public class SocketsManagerImpl implements ISocketsManager {
 
     @Override
     public void addConnectedSocket(Socket socket, ServiceInfo serviceInfo) {
-        if (getConnectedSocket(serviceInfo.getServerId()) != null) {
+        if(serviceInfo == null || serviceInfo.getDeviceName() == null || serviceInfo.getIpAddress() == null){
+            throw new IllegalArgumentException("ServiceInfo is null or has null fields");
+        }
+        if (getConnectedSocket(serviceInfo.getServerId(),serviceInfo.getIpAddress()) != null) {
             removeConnectedSocket(serviceInfo.getServerId());
         }
         connectedSockets.add(new Pair<>(socket, serviceInfo));
         connectedSocketsSubject.onNext(new Pair<>(socket, serviceInfo));
     }
 @Override
-    public Pair<Socket, ServiceInfo> getConnectedSocket(String serverId) {
+    public Pair<Socket, ServiceInfo> getConnectedSocket(String serverId,String ipAddress) {
         for (Pair<Socket, ServiceInfo> connectedSocket : connectedSockets) {
-            if (connectedSocket.second.getServerId().equals(serverId)) {
+            if (connectedSocket.second.getServerId() != null && connectedSocket.second.getServerId().equals(serverId)) {
+                return connectedSocket;
+            } else if (connectedSocket.second.getIpAddress() != null && connectedSocket.second.getIpAddress().equals(ipAddress)) {
                 return connectedSocket;
             }
         }
@@ -46,7 +51,7 @@ public class SocketsManagerImpl implements ISocketsManager {
     }
 @Override
     public void removeConnectedSocket(String serverId) {
-        Pair<Socket, ServiceInfo> connectedSocket = getConnectedSocket(serverId);
+        Pair<Socket, ServiceInfo> connectedSocket = getConnectedSocket(serverId,null);
         if (connectedSocket != null) {
             connectedSockets.remove(connectedSocket);
         }

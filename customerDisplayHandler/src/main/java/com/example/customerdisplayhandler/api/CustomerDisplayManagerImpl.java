@@ -94,7 +94,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
         tcpMessageSender = new TcpMessageSenderImpl();
         pairDisplay = new PairDisplayImpl(socketsManager, clientInfoManager, jsonUtil, tcpMessageSender, tcpMessageListener, connectedDisplaysRepository);
         troubleshootDisplay = new TroubleshootDisplayImpl(tcpConnector, socketsManager, multicastManager, networkServiceDiscoveryManager, connectedDisplaysRepository);
-        customerDisplayUpdatesSender = new CustomerDisplayUpdatesSenderImpl(troubleshootDisplay, socketsManager, serverPort, connectedDisplaysRepository, tcpMessageSender, tcpConnector,clientInfoManager,jsonUtil);
+        customerDisplayUpdatesSender = new CustomerDisplayUpdatesSenderImpl(troubleshootDisplay, socketsManager, serverPort, connectedDisplaysRepository, tcpMessageSender, tcpConnector, clientInfoManager, jsonUtil);
     }
 
     @Override
@@ -139,7 +139,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                         .subscribe(() -> {
                             Log.d("CustomerDisplayManager", "Pairing completed with customer display: " + serviceInfo.getIpAddress());
                         }, throwable -> {
-                            Log.e("CustomerDisplayManager", "Error pairing with customer display: " + throwable.getMessage());
+                            Log.e("CustomerDisplayManager", "Error pairing with customer display: ", throwable);
                             listener.onPairingServerFailed(throwable.getMessage());
                         })
         );
@@ -175,13 +175,15 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
 
     @Override
     public void removeConnectedDisplay(String customerDisplayId, RemoveCustomerDisplayListener listener) {
-        Disposable disposable = connectedDisplaysRepository.removeCustomerDisplay(customerDisplayId).subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread()).subscribe(() -> {
-            Log.d("CustomerDisplayManager", "Customer display removed: " + customerDisplayId);
-            listener.onCustomerDisplayRemoved();
-        }, throwable -> {
-            Log.e("CustomerDisplayManager", "Error removing customer display: " + throwable.getMessage());
-            listener.onCustomerDisplayRemoveFailed("Error occurred while removing customer display");
-        });
+        Disposable disposable = connectedDisplaysRepository.removeCustomerDisplay(customerDisplayId)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread()).subscribe(() -> {
+                    Log.d("CustomerDisplayManager", "Customer display removed: " + customerDisplayId);
+                    listener.onCustomerDisplayRemoved();
+                }, throwable -> {
+                    Log.e("CustomerDisplayManager", "Error removing customer display: " + throwable.getMessage());
+                    listener.onCustomerDisplayRemoveFailed("Error occurred while removing customer display");
+                });
         compositeDisposable.add(disposable);
     }
 
@@ -234,7 +236,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                         .subscribe(() -> {
                             Log.i(TAG, customerDisplay.getCustomerDisplayName() + " troubleshooting completed");
                         }, throwable -> {
-                            Log.e(TAG, customerDisplay.getCustomerDisplayName() + " troubleshooting failed: " + throwable);
+                            Log.e(TAG, customerDisplay.getCustomerDisplayName() + " troubleshooting failed: ", throwable);
                             listener.onTroubleshootFailed(throwable.getMessage());
                         })
         );
@@ -249,28 +251,28 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     @Override
     public void sendUpdatesToCustomerDisplays(DisplayUpdates displayUpdates, OnSendUpdatesListener listener) {
         sendUpdatesCompositeDisposable.add(
-               customerDisplayUpdatesSender.sendUpdatesToCustomerDisplays(displayUpdates)
-                       .subscribeOn(Schedulers.io())
-                       .observeOn(AndroidSchedulers.mainThread())
-                       .subscribe(
-                               customerDisplaysWithResults -> {
-                                   Log.i(TAG, "Updates sent to customer displays: " + jsonUtil.toJson(customerDisplaysWithResults));
-                                   if (customerDisplaysWithResults.isEmpty()) {
-                                       listener.onSystemError("No customer displays found");
-                                   } else {
-                                       boolean allUpdatesSent = customerDisplaysWithResults.stream().allMatch(Pair -> Pair.second);
+                customerDisplayUpdatesSender.sendUpdatesToCustomerDisplays(displayUpdates)
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(
+                                customerDisplaysWithResults -> {
+                                    Log.i(TAG, "Updates sent to customer displays: " + jsonUtil.toJson(customerDisplaysWithResults));
+                                    if (customerDisplaysWithResults.isEmpty()) {
+                                        listener.onSystemError("No customer displays found");
+                                    } else {
+                                        boolean allUpdatesSent = customerDisplaysWithResults.stream().allMatch(Pair -> Pair.second);
                                         if (allUpdatesSent) {
-                                             listener.onAllUpdatesSentWithSuccess();
+                                            listener.onAllUpdatesSentWithSuccess();
                                         } else {
                                             listener.onSomeUpdatesFailed(customerDisplaysWithResults);
                                         }
-                                   }
-                               },
-                               throwable -> {
-                                   Log.e(TAG, "Error sending updates to customer displays: " + throwable.getMessage());
-                                   listener.onSystemError(throwable.getMessage());
-                               }
-                       )
+                                    }
+                                },
+                                throwable -> {
+                                    Log.e(TAG, "Error sending updates to customer displays: " + throwable.getMessage());
+                                    listener.onSystemError(throwable.getMessage());
+                                }
+                        )
         );
     }
 

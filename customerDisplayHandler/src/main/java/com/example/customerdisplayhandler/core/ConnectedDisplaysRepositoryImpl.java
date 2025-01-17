@@ -39,7 +39,16 @@ public class ConnectedDisplaysRepositoryImpl implements IConnectedDisplaysReposi
     public Completable addCustomerDisplay(CustomerDisplay customerDisplay) {
         return getListOfConnectedDisplays()
                 .flatMapCompletable((customerDisplayList) -> {
+                    if(customerDisplay == null ||
+                            customerDisplay.getCustomerDisplayID() == null ||
+                            customerDisplay.getCustomerDisplayName() == null ||
+                            customerDisplay.getCustomerDisplayIpAddress() == null
+
+                    ){
+                        return Completable.error(new Exception("Customer display is null or has null fields"));
+                    }
                     customerDisplayList.add(customerDisplay);
+                    Log.e("ConnectedDisplaysRepository", "Customer display added to repo: " + jsonUtil.toJson(customerDisplay));
                     return saveListOnSharedPref(customerDisplayList);
                 })
                 .subscribeOn(Schedulers.io());
@@ -66,7 +75,7 @@ public class ConnectedDisplaysRepositoryImpl implements IConnectedDisplaysReposi
                 .doOnSuccess((customerDisplays -> Log.d("ConnectedDisplaysRepository", "Customer displays: " + customerDisplays)))
                 .flatMapMaybe((customerDisplayList) -> {
                     for (CustomerDisplay customerDisplay : customerDisplayList) {
-                        if (customerDisplay.getCustomerDisplayID().equals(customerDisplayId)) {
+                        if (customerDisplay != null && customerDisplay.getCustomerDisplayID() != null && customerDisplay.getCustomerDisplayID().equals(customerDisplayId)) {
                             return Maybe.just(customerDisplay);
                         }
                     }
