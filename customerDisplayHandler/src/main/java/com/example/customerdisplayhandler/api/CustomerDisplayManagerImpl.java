@@ -126,12 +126,12 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     }
 
     @Override
-    public void startPairingCustomerDisplay(ServiceInfo serviceInfo, OnPairingServerListener listener) {
+    public void startPairingCustomerDisplay(ServiceInfo serviceInfo, Boolean isDarkMode, OnPairingServerListener listener) {
         pairingCompositeDisposable.add(
                 reconnect(serviceInfo)
                         .doOnSuccess(p -> listener.onCustomerDisplayFound())
                         .flatMapCompletable(socketServiceInfoPair ->
-                                pairDisplay.startDisplayPairing(socketServiceInfoPair.first, socketServiceInfoPair.second, listener)
+                                pairDisplay.startDisplayPairing(socketServiceInfoPair.first, socketServiceInfoPair.second, isDarkMode, listener)
                         )
                         .doOnSubscribe(disposable -> listener.onPairingServerStarted())
                         .subscribeOn(Schedulers.io())
@@ -151,29 +151,6 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     }
 
     @Override
-    public void addConnectedDisplay(String customerDisplayId, String customerDisplayName, String customerDisplayIpAddress, AddCustomerDisplayListener listener) {
-        CustomerDisplay customerDisplayNew = new CustomerDisplay(customerDisplayId, customerDisplayName, customerDisplayIpAddress, true);
-        Disposable disposable = connectedDisplaysRepository.getCustomerDisplayById(customerDisplayId)
-                .switchIfEmpty(Single.just(new CustomerDisplay(null, null, null, false)))
-                .flatMapCompletable(customerDisplay -> {
-                    if (customerDisplay == null || customerDisplay.getCustomerDisplayID() == null) {
-                        return connectedDisplaysRepository.addCustomerDisplay(customerDisplayNew);
-                    } else {
-                        return connectedDisplaysRepository.updateCustomerDisplay(customerDisplayNew)
-                                .ignoreElement();
-                    }
-                }).subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(() -> {
-                    listener.onCustomerDisplayAdded(customerDisplayNew);
-                }, throwable -> {
-                    Log.e("CustomerDisplayManager", "Error adding customer display: " + throwable.getMessage());
-                    listener.onCustomerDisplayAddFailed("Error occurred while saving customer display");
-                });
-        pairingCompositeDisposable.add(disposable);
-    }
-
-    @Override
     public void removeConnectedDisplay(String customerDisplayId, RemoveCustomerDisplayListener listener) {
         Disposable disposable = connectedDisplaysRepository.removeCustomerDisplay(customerDisplayId)
                 .subscribeOn(Schedulers.io())
@@ -189,10 +166,12 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
 
     @Override
     public void getConnectedDisplays(GetConnectedDisplaysListener listener) {
-        Disposable disposable = connectedDisplaysRepository.getListOfConnectedDisplays().subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread()).subscribe(listener::onConnectedDisplaysReceived, throwable -> {
-            Log.e("CustomerDisplayManager", "Error getting connected displays: " + throwable.getMessage());
-            listener.onConnectedDisplaysReceiveFailed("Error occurred while getting connected displays");
-        });
+        Disposable disposable = connectedDisplaysRepository.getListOfConnectedDisplays()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread()).subscribe(listener::onConnectedDisplaysReceived, throwable -> {
+                    Log.e("CustomerDisplayManager", "Error getting connected displays: " + throwable.getMessage());
+                    listener.onConnectedDisplaysReceiveFailed("Error occurred while getting connected displays");
+                });
         compositeDisposable.add(disposable);
     }
 
@@ -200,16 +179,23 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     public synchronized void toggleCustomerDisplayActivation(String customerDisplayId, OnCustomerDisplayActivationToggleListener listener) {
         Disposable disposable = connectedDisplaysRepository
                 .getCustomerDisplayById(customerDisplayId)
-                .defaultIfEmpty(new CustomerDisplay(null, null, null, false))
+                .defaultIfEmpty(new CustomerDisplay(null, null, null, false, false))
                 .flatMap(customerDisplay -> {
                     if (customerDisplay != null && customerDisplay.getCustomerDisplayID() != null) {
-                        CustomerDisplay updatedCustomerDisplay = new CustomerDisplay(customerDisplay.getCustomerDisplayID(), customerDisplay.getCustomerDisplayName(), customerDisplay.getCustomerDisplayIpAddress(), !customerDisplay.getIsActivated());
+                        CustomerDisplay updatedCustomerDisplay = new CustomerDisplay(
+                                customerDisplay.getCustomerDisplayID(),
+                                customerDisplay.getCustomerDisplayName(),
+                                customerDisplay.getCustomerDisplayIpAddress(),
+                                !customerDisplay.getIsActivated(),
+                                customerDisplay.getIsDarkModeActivated()
+                        );
                         return connectedDisplaysRepository.updateCustomerDisplay(updatedCustomerDisplay)
                                 .map(CustomerDisplay::getIsActivated);
                     } else {
                         return Single.error(new IOException("Customer display not found"));
                     }
-                }).subscribeOn(Schedulers.io())
+                })
+                .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe((isActivated) -> {
                     Log.d("CustomerDisplayManager", "Customer display activation toggled: " + customerDisplayId);
@@ -249,6 +235,52 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     }
 
     @Override
+    public void updateCustomerDisplay(CustomerDisplay updatedCustomerDisplay, OnUpdateDisplayListener listener) {
+        sendUpdatesCompositeDisposable.add(
+                connectedDisplaysRepository.getCustomerDisplayById(updatedCustomerDisplay.getCustomerDisplayID())
+                        .switchIfEmpty(Single.error(new IOException("Customer display not found")))
+                        .flatMapCompletable(display->{
+                            Boolean isDarkModeChanged = display.getIsDarkModeActivated() != updatedCustomerDisplay.getIsDarkModeActivated();
+                            if(isDarkModeChanged){
+                                return customerDisplayUpdatesSender.sendThemeUpdateToCustomerDisplay(updatedCustomerDisplay)
+                                        .onErrorResumeNext(throwable -> {
+                                            Log.e(TAG, "Error sending theme update to customer display: " + throwable.getMessage());
+                                            listener.onUpdateDisplayFailed(updatedCustomerDisplay.getCustomerDisplayName() + " theme update failed, please try again");
+                                            CustomerDisplay withoutThemeUpdate = new CustomerDisplay(
+                                                    updatedCustomerDisplay.getCustomerDisplayID(),
+                                                    updatedCustomerDisplay.getCustomerDisplayName(),
+                                                    updatedCustomerDisplay.getCustomerDisplayIpAddress(),
+                                                    updatedCustomerDisplay.getIsActivated(),
+                                                    display.getIsDarkModeActivated()
+                                            );
+                                            return connectedDisplaysRepository.updateCustomerDisplay(withoutThemeUpdate)
+                                                    .ignoreElement();
+                                        })
+                                        .andThen(connectedDisplaysRepository.updateCustomerDisplay(updatedCustomerDisplay).ignoreElement());
+                            }else{
+                                return connectedDisplaysRepository.updateCustomerDisplay(updatedCustomerDisplay).ignoreElement();
+                            }
+                        })
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(
+                                () -> {
+                                    listener.onDisplayUpdated();
+                                },
+                                throwable -> {
+                                    Log.e(TAG, "Error sending theme update to customer display: " + throwable.getMessage());
+                                    listener.onUpdateDisplayFailed(updatedCustomerDisplay.getCustomerDisplayName() + " error occurred while updating.");
+                                }
+                        )
+        );
+    }
+
+    @Override
+    public void stopSendingUpdatesToCustomerDisplays() {
+        sendUpdatesCompositeDisposable.clear();
+    }
+
+    @Override
     public void sendUpdatesToCustomerDisplays(DisplayUpdates displayUpdates, OnSendUpdatesListener listener) {
         sendUpdatesCompositeDisposable.add(
                 customerDisplayUpdatesSender.sendUpdatesToCustomerDisplays(displayUpdates)
@@ -278,11 +310,14 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
 
     @Override
     public void sendMulticastMessage(String message) {
-        Disposable disposable = multicastManager.sendMessage(message).subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread()).subscribe(() -> {
-            Log.d("CustomerDisplayManager", "Multicast message sent: " + message);
-        }, throwable -> {
-            Log.e("CustomerDisplayManager", "Error sending multicast message: " + throwable.getMessage());
-        });
+        Disposable disposable = multicastManager.sendMessage(message)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> {
+                    Log.d("CustomerDisplayManager", "Multicast message sent: " + message);
+                }, throwable -> {
+                    Log.e("CustomerDisplayManager", "Error sending multicast message: " + throwable.getMessage());
+                });
         compositeDisposable.add(disposable);
     }
 
@@ -290,6 +325,9 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     @Override
     public void disposeCustomerDisplayManager() {
         compositeDisposable.clear();
+        pairingCompositeDisposable.clear();
+        troubleshootingCompositeDisposable.clear();
+        sendUpdatesCompositeDisposable.clear();
     }
 
     private Single<Pair<Socket, ServiceInfo>> reconnectIfDisconnected(ServiceInfo serviceInfo) {

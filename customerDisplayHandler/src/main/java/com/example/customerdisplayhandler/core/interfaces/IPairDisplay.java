@@ -8,5 +8,5 @@ import java.net.Socket;
 import io.reactivex.rxjava3.core.Completable;
 
 public interface IPairDisplay {
-    Completable startDisplayPairing(Socket socket, ServiceInfo serviceInfo, OnPairingServerListener listener);
+    Completable startDisplayPairing(Socket socket, ServiceInfo serviceInfo,Boolean isDarkMode, OnPairingServerListener listener);
 }

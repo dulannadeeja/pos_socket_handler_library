@@ -21,15 +21,19 @@ import com.example.pos.R;
 public class PairingFragment extends DialogFragment {
     public static final String TAG = PairingFragment.class.getSimpleName();
     private static final String ARG_SERVICE_INFO = "serviceInfo";
+    private static final String ARG_IS_DARK_MODE = "isDarkMode";
     private ServiceInfo serviceInfo;
+    private Boolean isDarkMode;
     private TextView pairingStatusTextView;
     private PairingViewModel pairingViewModel;
+    private CustomerDisplayViewModel customerDisplayViewModel;
     private ICustomerDisplayManager customerDisplayManager;
 
-    public static PairingFragment newInstance(ServiceInfo serviceInfo) {
+    public static PairingFragment newInstance(ServiceInfo serviceInfo, Boolean isDarkMode) {
         PairingFragment fragment = new PairingFragment();
         Bundle args = new Bundle();
         args.putSerializable(ARG_SERVICE_INFO, serviceInfo);
+        args.putBoolean(ARG_IS_DARK_MODE, isDarkMode);
         fragment.setArguments(args);
         return fragment;
     }
@@ -39,10 +43,9 @@ public class PairingFragment extends DialogFragment {
         super.onCreate(savedInstanceState);
         if (getArguments() != null) {
             serviceInfo = (ServiceInfo) getArguments().getSerializable(ARG_SERVICE_INFO);
+            isDarkMode = getArguments().getBoolean(ARG_IS_DARK_MODE);
         }
 
-        // Initialize the ViewModel
-        pairingViewModel = new ViewModelProvider(this).get(PairingViewModel.class);
     }
 
     @Override
@@ -54,6 +57,10 @@ public class PairingFragment extends DialogFragment {
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+
+        // Initialize the ViewModel
+        pairingViewModel = new ViewModelProvider(this).get(PairingViewModel.class);
+        customerDisplayViewModel = new ViewModelProvider(requireActivity()).get(CustomerDisplayViewModel.class);
 
         pairingStatusTextView = view.findViewById(R.id.pairing_status_tv);
 
@@ -68,7 +75,7 @@ public class PairingFragment extends DialogFragment {
 
         // Start pairing process
         pairingViewModel.setCustomerDisplayManager(customerDisplayManager);
-        pairingViewModel.startPairing(serviceInfo, this::onCustomerDisplayConnected);
+        pairingViewModel.startPairing(serviceInfo,isDarkMode, this::onCustomerDisplayConnected);
     }
 
     private void onCustomerDisplayConnected(ServiceInfo serviceInfo) {
@@ -76,15 +83,12 @@ public class PairingFragment extends DialogFragment {
         MainActivity mainActivity = (MainActivity) requireActivity();
         FragmentManager fragmentManager = requireActivity().getSupportFragmentManager();
         AddCustomerDisplayFragment addCustomerDisplayFragment = (AddCustomerDisplayFragment) fragmentManager.findFragmentByTag(AddCustomerDisplayFragment.TAG);
-        CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = (CustomerDisplaySettingsDialogFragment) fragmentManager.findFragmentByTag(CustomerDisplaySettingsDialogFragment.TAG);
 
         if (addCustomerDisplayFragment != null) {
             addCustomerDisplayFragment.dismiss();
         }
-        if (customerDisplaySettingsDialogFragment != null) {
-            customerDisplaySettingsDialogFragment.refreshConnectedDisplays();
-        }
         dismiss();
+        customerDisplayViewModel.refreshConnectedDisplays();
         mainActivity.showToast(serviceInfo.getDeviceName() + " connected successfully!");
     }
 

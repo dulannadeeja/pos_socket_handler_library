@@ -74,12 +74,12 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
     private Completable handleSocketConnectionWithoutListeners(CustomerDisplay customerDisplay) {
         return notifyDevicesToEnableDiscoveryMode()
                 .andThen(searchForCustomerDisplayWithoutListeners(customerDisplay))
-                .flatMapCompletable(serviceInfo -> connectToServiceWithoutListeners(serviceInfo, customerDisplay));
+                .flatMapCompletable(nsdServiceInfo -> connectToServiceWithoutListeners(nsdServiceInfo, customerDisplay));
     }
 
     private Completable connectToServiceWithoutListeners(ServiceInfo serviceInfo, CustomerDisplay customerDisplay) {
         return tcpConnector.connectToServer(serviceInfo.getIpAddress(), NetworkConstants.DEFAULT_SERVER_PORT)
-                .flatMapCompletable(socket -> saveCustomerDisplay(socket, serviceInfo, customerDisplay));
+                .flatMapCompletable(socket -> updateCustomerDisplay(socket, serviceInfo, customerDisplay));
     }
 
     private Single<ServiceInfo> searchForCustomerDisplayWithoutListeners(CustomerDisplay customerDisplay) {
@@ -148,9 +148,10 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
     private Completable updateCustomerDisplay(Socket socket, ServiceInfo newServiceInfo, CustomerDisplay customerDisplay) {
         CustomerDisplay updatedCustomerDisplay = new CustomerDisplay(
                 newServiceInfo.getServerId(),
-                newServiceInfo.getDeviceName(),
+                customerDisplay.getCustomerDisplayName(),
                 newServiceInfo.getIpAddress(),
-                customerDisplay.getIsActivated()
+                customerDisplay.getIsActivated(),
+                customerDisplay.getIsDarkModeActivated()
         );
         return connectedDisplaysRepository.updateCustomerDisplay(updatedCustomerDisplay).ignoreElement()
                 .doOnComplete(() -> {
@@ -159,20 +160,6 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
                 })
                 .subscribeOn(Schedulers.io());
 
-    }
-
-    private Completable saveCustomerDisplay(Socket socket, ServiceInfo serviceInfo, CustomerDisplay customerDisplay) {
-        CustomerDisplay updatedDisplay = new CustomerDisplay(
-                serviceInfo.getServerId(),
-                serviceInfo.getDeviceName(),
-                serviceInfo.getIpAddress(),
-                customerDisplay.getIsActivated()
-        );
-        return connectedDisplaysRepository.updateCustomerDisplay(updatedDisplay).ignoreElement()
-                .doOnComplete(() -> {
-                    Log.i(TAG, "Updated customer display with IP: " + serviceInfo.getIpAddress());
-                    socketsManager.addConnectedSocket(socket, serviceInfo);
-                });
     }
 
 

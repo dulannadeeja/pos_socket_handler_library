@@ -11,6 +11,7 @@ import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.DialogFragment;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -29,13 +30,11 @@ import java.util.List;
 public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
 
     public static final String TAG = CustomerDisplaySettingsDialogFragment.class.getSimpleName();
-
+    private CustomerDisplayViewModel customerDisplayViewModel;
     private AddNewDisplayFabListener addNewDisplayFabListener;
     private RecyclerView connectedDisplaysRecyclerView;
     private LinearLayout noConnectedDisplaysLayout;
     private ConnectedCustomerDisplayAdapter connectedDisplayAdapter;
-    private ICustomerDisplayManager customerDisplayManager;
-    private final List<CustomerDisplay> pairedDisplays = new ArrayList<>();
 
     public static CustomerDisplaySettingsDialogFragment newInstance() {
         return new CustomerDisplaySettingsDialogFragment();
@@ -61,25 +60,44 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         initializeViews(view);
-        setupRecyclerView();
-        fetchConnectedDisplays();
+        initViewModels();
+        initRecyclerView();
+        observeViewModels();
+    }
+
+    private void initViewModels() {
+        customerDisplayViewModel = new ViewModelProvider(requireActivity()).get(CustomerDisplayViewModel.class);
+        customerDisplayViewModel.fetchConnectedDisplays();
+    }
+
+    private void observeViewModels() {
+        customerDisplayViewModel.getPairedDisplays().observe(getViewLifecycleOwner(), this::updateDisplayVisibility);
     }
 
     private void initializeViews(@NonNull View view) {
-        App app = (App) requireActivity().getApplication();
-        customerDisplayManager = app.getCustomerDisplayManager();
-
         connectedDisplaysRecyclerView = view.findViewById(com.example.customerdisplayhandler.R.id.connected_displays_recycler_view);
         noConnectedDisplaysLayout = view.findViewById(com.example.customerdisplayhandler.R.id.no_connected_displays_layout);
-
-        connectedDisplayAdapter = new ConnectedCustomerDisplayAdapter(getItemClickListener());
+        connectedDisplaysRecyclerView.setVisibility(View.GONE);
+        noConnectedDisplaysLayout.setVisibility(View.GONE);
     }
 
-    private ConnectedCustomerDisplayAdapter.OnItemClickListener getItemClickListener(){
+    private void showEditCustomerDisplayFragment(CustomerDisplay customerDisplay) {
+        EditCustomerDisplayFragment editCustomerDisplayFragment = EditCustomerDisplayFragment.newInstance(customerDisplay);
+        editCustomerDisplayFragment.show(requireActivity().getSupportFragmentManager(), EditCustomerDisplayFragment.TAG);
+    }
+
+    private void initRecyclerView() {
+        connectedDisplayAdapter = new ConnectedCustomerDisplayAdapter(getItemClickListener());
+        connectedDisplaysRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+        connectedDisplaysRecyclerView.setAdapter(connectedDisplayAdapter);
+    }
+
+    private ConnectedCustomerDisplayAdapter.OnItemClickListener getItemClickListener() {
         return new ConnectedCustomerDisplayAdapter.OnItemClickListener() {
             @Override
             public void onItemClick(CustomerDisplay customerDisplay) {
                 Log.d(TAG, "Customer display clicked: " + customerDisplay.getCustomerDisplayName());
+                showEditCustomerDisplayFragment(customerDisplay);
             }
 
             @Override
@@ -92,80 +110,21 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
 
             @Override
             public void onDisconnectClick(CustomerDisplay customerDisplay) {
-                disconnectCustomerDisplay(customerDisplay);
+                customerDisplayViewModel.disconnectCustomerDisplay(customerDisplay);
             }
 
             @Override
             public void onConnectionSwitchToggle(CustomerDisplay customerDisplay) {
-                toggleCustomerDisplayActivation(customerDisplay);
+                customerDisplayViewModel.toggleCustomerDisplayActivation(customerDisplay, () -> {
+                    // do nothing on failure, everything is handled by the ViewModel
+                });
             }
         };
     }
 
-    private void disconnectCustomerDisplay(CustomerDisplay customerDisplay){
-        customerDisplayManager.removeConnectedDisplay(customerDisplay.getCustomerDisplayID(), new ICustomerDisplayManager.RemoveCustomerDisplayListener() {
-            @Override
-            public void onCustomerDisplayRemoved() {
-                showToast(customerDisplay.getCustomerDisplayName() + " removed successfully");
-                refreshConnectedDisplays();
-            }
-
-            @Override
-            public void onCustomerDisplayRemoveFailed(String errorMessage) {
-                Log.e(TAG, "Error removing customer display: " + errorMessage);
-                showToast("Error occurred while removing " + customerDisplay.getCustomerDisplayName());
-            }
-        });
-    }
-
-    private void toggleCustomerDisplayActivation(CustomerDisplay customerDisplay){
-        customerDisplayManager.toggleCustomerDisplayActivation(customerDisplay.getCustomerDisplayID(), new ICustomerDisplayManager.OnCustomerDisplayActivationToggleListener() {
-            @Override
-            public void onCustomerDisplayActivated() {
-                showToast(customerDisplay.getCustomerDisplayName() + " will now receive updates");
-                refreshConnectedDisplays();
-            }
-
-            @Override
-            public void onCustomerDisplayDeactivated() {
-                showToast(customerDisplay.getCustomerDisplayName() + " will no longer receive updates");
-                refreshConnectedDisplays();
-            }
-
-            @Override
-            public void onCustomerDisplayActivationToggleFailed(String errorMessage) {
-                Log.e(TAG, "Error toggling customer display activation: " + errorMessage);
-                showToast(errorMessage);
-            }
-        });
-    }
-
-    private void setupRecyclerView() {
-        connectedDisplaysRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
-        connectedDisplaysRecyclerView.setAdapter(connectedDisplayAdapter);
-        updateDisplayVisibility();
-    }
-
-    private void fetchConnectedDisplays() {
-        customerDisplayManager.getConnectedDisplays(new ICustomerDisplayManager.GetConnectedDisplaysListener() {
-            @Override
-            public void onConnectedDisplaysReceived(List<CustomerDisplay> connectedDisplays) {
-                Log.d(TAG, "Connected displays received: " + connectedDisplays.size());
-                pairedDisplays.clear();
-                pairedDisplays.addAll(connectedDisplays);
-                updateDisplayVisibility();
-            }
-
-            @Override
-            public void onConnectedDisplaysReceiveFailed(String errorMessage) {
-                Log.e(TAG, "Error getting connected displays: " + errorMessage);
-                showToast("Error occurred while getting connected displays");
-            }
-        });
-    }
-
-    private void updateDisplayVisibility() {
-        if (pairedDisplays.isEmpty() ) {
+    private void updateDisplayVisibility(List<CustomerDisplay> pairedDisplays) {
+        Log.d(TAG, "Paired displays: " + pairedDisplays.size());
+        if (pairedDisplays.isEmpty()) {
             connectedDisplaysRecyclerView.setVisibility(View.GONE);
             noConnectedDisplaysLayout.setVisibility(View.VISIBLE);
         } else {
@@ -175,13 +134,11 @@ public class CustomerDisplaySettingsDialogFragment extends DialogFragment {
         }
     }
 
-    public void refreshConnectedDisplays() {
-        fetchConnectedDisplays();
-    }
-
-    private void showToast(String message) {
-        MainActivity mainActivity = (MainActivity) requireActivity();
-        mainActivity.showToast(message);
+    private void updateLoadingState(Boolean isLoading) {
+        if (isLoading) {
+            connectedDisplaysRecyclerView.setVisibility(View.GONE);
+            noConnectedDisplaysLayout.setVisibility(View.GONE);
+        }
     }
 
     @Override

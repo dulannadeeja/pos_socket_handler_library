@@ -1,14 +1,13 @@
 package com.example.customerdisplayhandler.core;
 
-import android.graphics.drawable.Icon;
 import android.util.Log;
 
-import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.constants.NetworkConstants;
 import com.example.customerdisplayhandler.core.interfaces.IClientInfoManager;
 import com.example.customerdisplayhandler.core.interfaces.IConnectedDisplaysRepository;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageListener;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageSender;
+import com.example.customerdisplayhandler.model.ConnectionReq;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.shared.OnPairingServerListener;
 import com.example.customerdisplayhandler.core.interfaces.IPairDisplay;
@@ -49,24 +48,32 @@ public class PairDisplayImpl implements IPairDisplay {
         this.connectedDisplaysRepository = connectedDisplaysRepository;
     }
 
-    public Completable startDisplayPairing(Socket connectedSocket, ServiceInfo serviceInfo, OnPairingServerListener listener) {
+    public Completable startDisplayPairing(Socket connectedSocket, ServiceInfo serviceInfo,Boolean isDarkMode, OnPairingServerListener listener) {
         Log.d(TAG, "Connecting to server: " + serviceInfo.getIpAddress());
         return Completable.mergeArray(
                 tcpMessageListener.startListening(serviceInfo.getServerId(), connectedSocket),
                 clientInfoManager.getClientInfo()
-                .flatMapCompletable(clientInfo -> getConnectionApprovalStatus(serviceInfo, connectedSocket, clientInfo, listener)
+                .flatMapCompletable(clientInfo -> getConnectionApprovalStatus(serviceInfo, connectedSocket, clientInfo, isDarkMode, listener)
                         .flatMapCompletable(connectionApproval ->{
                             if (connectionApproval != null && connectionApproval.isConnectionApproved() != null && connectionApproval.isConnectionApproved()) {
                                 listener.onConnectionRequestApproved(serviceInfo);
-                                CustomerDisplay customerDisplay = new CustomerDisplay(connectionApproval.getServerID(),serviceInfo.getDeviceName(),connectionApproval.getServerIpAddress(),true);
+                                CustomerDisplay customerDisplay = new CustomerDisplay(
+                                        connectionApproval.getServerID(),
+                                        serviceInfo.getDeviceName(),
+                                        connectionApproval.getServerIpAddress(),
+                                        true,
+                                        isDarkMode
+                                );
                                 return connectedDisplaysRepository.getCustomerDisplayById(connectionApproval.getServerID())
-                                        .defaultIfEmpty(new CustomerDisplay(null,null,null,false))
+                                        .defaultIfEmpty(new CustomerDisplay(null,null,null,false,false))
                                         .flatMapCompletable(existingCustomerDisplay -> {
                                             if (existingCustomerDisplay != null && existingCustomerDisplay.getCustomerDisplayID() != null) {
-                                                return connectedDisplaysRepository.updateCustomerDisplay(customerDisplay)
+                                                return connectedDisplaysRepository
+                                                        .updateCustomerDisplay(customerDisplay)
                                                         .ignoreElement();
                                             } else {
-                                                return connectedDisplaysRepository.addCustomerDisplay(customerDisplay);
+                                                return connectedDisplaysRepository
+                                                        .addCustomerDisplay(customerDisplay);
                                             }
                                         })
                                         .doOnComplete(() -> listener.onSavedEstablishedConnection(serviceInfo));
@@ -79,12 +86,12 @@ public class PairDisplayImpl implements IPairDisplay {
                 .observeOn(AndroidSchedulers.mainThread());
     }
 
-    private Single<ConnectionApproval> getConnectionApprovalStatus(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo, OnPairingServerListener listener) {
+    private Single<ConnectionApproval> getConnectionApprovalStatus(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo,Boolean isDarkMode, OnPairingServerListener listener) {
         Log.i(TAG, "Starting pairing process with customer display.");
 
         // Send connection approval request and listen for server response
         return tcpMessageSender
-                .sendMessageToServer(serviceInfo.getServerId(), socket, createConnectionApprovalMessage(serviceInfo, clientInfo))
+                .sendMessageToServer(serviceInfo.getServerId(), socket, createConnectionApprovalRequest(serviceInfo, clientInfo, isDarkMode))
                 .doOnSubscribe(disposable -> listener.onConnectionRequestSent())
                 .andThen(tcpMessageListener.getServerMessageSubject().firstOrError())
                 .map(serverMessage -> {
@@ -95,9 +102,15 @@ public class PairDisplayImpl implements IPairDisplay {
                 .subscribeOn(Schedulers.io());
     }
 
-    private String createConnectionApprovalMessage(ServiceInfo serviceInfo, ClientInfo clientInfo) {
+    private String createConnectionApprovalRequest(ServiceInfo serviceInfo, ClientInfo clientInfo, Boolean isDarkMode) {
+        ConnectionReq connectionReq = new ConnectionReq(
+                clientInfo.getClientID(),
+                clientInfo.getClientIpAddress(),
+                clientInfo.getClientDeviceName(),
+                isDarkMode
+        );
         SocketMessageBase socketMessageBase = new SocketMessageBase(
-                clientInfo,
+                connectionReq,
                 NetworkConstants.REQUEST_CONNECTION_APPROVAL,
                 serviceInfo.getServerId(),
                 clientInfo.getClientID()

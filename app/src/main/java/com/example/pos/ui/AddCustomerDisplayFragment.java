@@ -12,10 +12,13 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 
+import com.example.customerdisplayhandler.helpers.InputValidationHelper;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.ui.UiProvider;
+import com.example.pos.MainActivity;
 import com.example.pos.R;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
@@ -28,8 +31,9 @@ public class AddCustomerDisplayFragment extends DialogFragment {
     private ServiceInfo selectedServiceInfo;
     private String customerDisplayIPAddress;
     private String customerDisplayName;
-    private Boolean isDarkMode;
+    private Boolean isDarkMode = false;
     private MaterialButton pairButton;
+    private MaterialSwitch darkModeSwitch;
     private TextInputLayout ipAddressInputLayout, nameInputLayout;
     private boolean isUpdating = false;
 
@@ -68,150 +72,31 @@ public class AddCustomerDisplayFragment extends DialogFragment {
         MaterialButton searchButton = view.findViewById(R.id.customer_display_search_button);
         searchButton.setOnClickListener(v -> showSearchCustomerDisplayFragment());
         pairButton = view.findViewById(R.id.pair_customer_display_button);
+        darkModeSwitch = view.findViewById(R.id.customer_display_dark_mode_switch);
+
+        darkModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            isDarkMode = isChecked;
+        });
 
         pairButton.setOnClickListener(v -> {
-            if (customerDisplayIPAddress != null && !customerDisplayIPAddress.isEmpty() && customerDisplayName != null && !customerDisplayName.isEmpty()) {
+            if (InputValidationHelper.validateIpAddress(customerDisplayIPAddress,ipAddressInputLayout) && InputValidationHelper.validateName(customerDisplayName,nameInputLayout)) {
                 if(selectedServiceInfo == null){
                     selectedServiceInfo = new ServiceInfo(null, customerDisplayName, customerDisplayIPAddress,null);
                 }
                 selectedServiceInfo.setDeviceName(customerDisplayName);
                 selectedServiceInfo.setIpAddress(customerDisplayIPAddress);
-                PairingFragment pairingFragment = PairingFragment.newInstance(selectedServiceInfo);
+                PairingFragment pairingFragment = PairingFragment.newInstance(selectedServiceInfo, isDarkMode);
                 pairingFragment.show(getChildFragmentManager(), PairingFragment.TAG);
             }else{
-                validateIpAddress(customerDisplayIPAddress);
-                validateName(customerDisplayName);
+                MainActivity mainActivity = (MainActivity) requireActivity();
+                mainActivity.showToast("Please check the fields and try again");
             }
         });
 
-        nameEditText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+        InputValidationHelper.addIpAddressWatcher(ipAddressEditText, ipAddressInputLayout, text -> customerDisplayIPAddress = text);
 
-            }
+        InputValidationHelper.addNameWatcher(nameEditText, nameInputLayout, text -> customerDisplayName = text);
 
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                customerDisplayName = s.toString();
-                validateName(customerDisplayName);
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-
-            }
-        });
-
-        ipAddressEditText.addTextChangedListener(new TextWatcher() {
-
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (isUpdating) {
-                    return;
-                }
-
-                isUpdating = true;
-
-                customerDisplayIPAddress = s.toString();
-                String formattedIpAddress = formatIpAddress(customerDisplayIPAddress);
-
-                if (formattedIpAddress.isEmpty()) {
-                    updateIpAddressField("");
-                    return;
-                }
-
-                if (formattedIpAddress.length() == 1) {
-                    if (formattedIpAddress.equals("0") || formattedIpAddress.equals(".")) {
-                        updateIpAddressField("");
-                        return;
-                    }
-                    updateIpAddressField(formattedIpAddress);
-                    return;
-                }
-
-                String lastChar = formattedIpAddress.substring(formattedIpAddress.length() - 1);
-                String nextToLastChar = formattedIpAddress.substring(formattedIpAddress.length() - 2, formattedIpAddress.length() - 1);
-                Boolean isLastCharDot = lastChar.equals(".");
-                Boolean isNextToLastCharDot = nextToLastChar.equals(".");
-
-                if (isLastCharDot && isNextToLastCharDot) {
-                    formattedIpAddress = formattedIpAddress.substring(0, formattedIpAddress.length() - 1);
-                }
-
-                if(!isLastCharDot){
-                    int lastDotIndex = formattedIpAddress.lastIndexOf(".");
-                    if(formattedIpAddress.length() - lastDotIndex > 4){
-                        formattedIpAddress = formattedIpAddress.substring(0, formattedIpAddress.length() - 1);
-                    }
-                }
-
-                int numberOfUsedDots = formattedIpAddress.length() - formattedIpAddress.replace(".", "").length();
-                if (numberOfUsedDots > 3) {
-                    formattedIpAddress = formattedIpAddress.substring(0, formattedIpAddress.length() - 1);
-                }
-
-                updateIpAddressField(formattedIpAddress);
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-
-            }
-        });
-
-    }
-
-    private void updateIpAddressField(String ipAddress) {
-        ipAddressEditText.setText(ipAddress);
-        ipAddressEditText.setSelection(ipAddress.length());
-        isUpdating = false;
-        validateIpAddress(ipAddress);
-    }
-
-    private String formatIpAddress(String inputIpAddress) {
-        String sanitizedInput = inputIpAddress.trim();
-        // Replace any invalid characters (allow only numbers and ".")
-        sanitizedInput = inputIpAddress.replaceAll("[^0-9.]", "");
-
-        int length = sanitizedInput.length();
-        if (length > 0) {
-            // Remove any leading zeros
-            sanitizedInput = sanitizedInput.replaceFirst("^0+(?!$)", "");
-        }
-        return sanitizedInput;
-    }
-
-    private void validateIpAddress(String ipAddress) {
-        if (ipAddress == null || ipAddress.isEmpty()) {
-            ipAddressInputLayout.setError("Looks like you forgot to enter an IP address.");
-            return;
-        }
-        String[] parts = ipAddress.split("\\.");
-        if (parts.length != 4) {
-            ipAddressInputLayout.setError("Looks like you entered an invalid IP address.");
-            return;
-        }
-        for (String s : parts) {
-            int i = Integer.parseInt(s);
-            if ((i < 0) || (i > 255)) {
-                ipAddressInputLayout.setError("Looks like you entered an invalid IP address.");
-                return;
-            }
-        }
-        ipAddressInputLayout.setError(null);
-    }
-
-    private void validateName(String name) {
-        if (name == null || name.isEmpty()) {
-            nameInputLayout.setError("Looks like you forgot to enter a name.");
-        } else {
-            nameInputLayout.setError(null);
-        }
     }
 
     public void updateSelectedCustomerDisplay(ServiceInfo serviceInfo) {

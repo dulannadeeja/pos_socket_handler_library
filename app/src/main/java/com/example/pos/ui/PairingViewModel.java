@@ -40,8 +40,8 @@ public class PairingViewModel extends ViewModel {
         this.customerDisplayManager = customerDisplayManager;
     }
 
-    public void startPairing(ServiceInfo serviceInfo, OnPairingCompletedListener onPairingCompletedListener) {
-        customerDisplayManager.startPairingCustomerDisplay(serviceInfo, new WeakPairingServerListener(this, onPairingCompletedListener));
+    public void startPairing(ServiceInfo serviceInfo,Boolean isDarkMode, OnPairingCompletedListener onPairingCompletedListener) {
+        customerDisplayManager.startPairingCustomerDisplay(serviceInfo,isDarkMode, new WeakPairingServerListener(this, onPairingCompletedListener));
     }
 
     public interface OnPairingCompletedListener {

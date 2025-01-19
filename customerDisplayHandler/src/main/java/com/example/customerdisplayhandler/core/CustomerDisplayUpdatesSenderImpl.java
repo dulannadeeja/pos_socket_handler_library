@@ -59,6 +59,17 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
         this.jsonUtil = jsonUtil;
     }
 
+    @Override
+    public Completable sendThemeUpdateToCustomerDisplay(CustomerDisplay updatedCustomerDisplay) {
+        return Single.just(updatedCustomerDisplay)
+                .flatMapCompletable(customerDisplay -> sendUpdateToDisplay(customerDisplay, customerDisplay.getIsDarkModeActivated(), NetworkConstants.UPDATE_THEME_COMMAND)
+                        .doOnComplete(() -> Log.i(TAG, "Successfully sent theme update to display: " + customerDisplay.getCustomerDisplayName()))
+                        .onErrorComplete(error -> {
+                            Log.e(TAG, "Failed to send theme update to display: " + customerDisplay.getCustomerDisplayID(), error);
+                            return true;
+                        }));
+    }
+
     public Single<List<Pair<CustomerDisplay, Boolean>>> sendUpdatesToCustomerDisplays(DisplayUpdates displayUpdates) {
         List<Pair<CustomerDisplay, Boolean>> customerDisplaysWithResults = new ArrayList<>();
 
@@ -69,25 +80,25 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
                         return Completable.complete();
                     }
                     Log.i(TAG, "Found " + customerDisplays.size() + " activated customer displays.");
-                    return sendUpdatesToDisplays(customerDisplays, displayUpdates, customerDisplaysWithResults);
+                    return sendUpdatesToDisplays(customerDisplays, displayUpdates, customerDisplaysWithResults, NetworkConstants.UPDATE_DISPLAY_COMMAND);
                 })
                 .andThen(Single.just(customerDisplaysWithResults));
     }
 
-    private Completable sendUpdatesToDisplays(List<CustomerDisplay> displays, DisplayUpdates displayUpdates, List<Pair<CustomerDisplay, Boolean>> results) {
+    private Completable sendUpdatesToDisplays(List<CustomerDisplay> displays, DisplayUpdates displayUpdates, List<Pair<CustomerDisplay, Boolean>> results,String command) {
         return Observable.fromIterable(displays)
-                .flatMapCompletable(display -> sendUpdateToDisplay(display, displayUpdates)
+                .flatMapCompletable(display -> sendUpdateToDisplay(display, displayUpdates, command)
                         .doOnComplete(() -> {
                             Log.i(TAG, "Successfully sent updates to display: " + display.getCustomerDisplayName());
                             results.add(new Pair<>(display, true));
                         })
-                        .onErrorResumeWith(handleFailedMessage(display, displayUpdates, results))
+                        .onErrorResumeWith(handleFailedMessage(display, displayUpdates, results,command))
                 )
                 .onErrorComplete();
     }
 
-    private Completable handleFailedMessage(CustomerDisplay display, DisplayUpdates displayUpdates, List<Pair<CustomerDisplay, Boolean>> results) {
-        return resendFailedMessage(display, displayUpdates)
+    private Completable handleFailedMessage(CustomerDisplay display, DisplayUpdates displayUpdates, List<Pair<CustomerDisplay, Boolean>> results, String command) {
+        return resendFailedMessage(display, displayUpdates,command)
                 .doOnComplete(() -> {
                     Log.i(TAG, "Successfully resent updates to display: " + display.getCustomerDisplayID());
                     results.add(new Pair<>(display, true));
@@ -98,10 +109,10 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
                 });
     }
 
-    private Completable resendFailedMessage(CustomerDisplay display, DisplayUpdates displayUpdates) {
+    private Completable resendFailedMessage(CustomerDisplay display, DisplayUpdates displayUpdates, String command) {
         Log.i(TAG, "Resending updates to failed display: " + display.getCustomerDisplayName());
         return troubleshootDisplay.startSilentTroubleshooting(display)
-                .andThen(sendUpdateToDisplay(display, displayUpdates));
+                .andThen(sendUpdateToDisplay(display, displayUpdates,command));
     }
 
     private Single<List<CustomerDisplay>> getActivatedCustomerDisplays() {
@@ -119,7 +130,7 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
                 });
     }
 
-    private Completable sendUpdateToDisplay(CustomerDisplay display, DisplayUpdates displayUpdates) {
+    private Completable sendUpdateToDisplay(CustomerDisplay display, Object displayUpdates, String command) {
         return Single.just(display)
                 .flatMap(d -> clientInfoManager.getClientInfo().map(clientInfo -> new Pair<>(d, clientInfo)))
                 .flatMapCompletable(pair -> {
@@ -127,7 +138,7 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
                     Socket socket = socketsManager.findSocketIfConnected(pair.first.getCustomerDisplayID());
 
                     // Prepare the message to be sent, according to the protocol
-                    SocketMessageBase socketMessageBase = new SocketMessageBase(displayUpdates, NetworkConstants.UPDATE_DISPLAY_COMMAND,pair.first.getCustomerDisplayID(),pair.second.getClientID());
+                    SocketMessageBase socketMessageBase = new SocketMessageBase(displayUpdates, command, pair.first.getCustomerDisplayID(), pair.second.getClientID());
                     String jsonMessage = jsonUtil.toJson(socketMessageBase);
 
                     if (socket != null) {
@@ -142,7 +153,7 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
     }
 
     private Single<Socket> establishNewConnection(CustomerDisplay display) {
-        return tcpConnector.tryToConnectWithingTimeout(display.getCustomerDisplayIpAddress(), serverPort, 1000)
+        return tcpConnector.tryToConnectWithingTimeout(display.getCustomerDisplayIpAddress(), serverPort, 2000)
                 .doOnSuccess(socket -> {
                     Log.i(TAG, "Successfully connected to server for display: " + display.getCustomerDisplayName());
                     socketsManager.addConnectedSocket(socket, new ServiceInfo(

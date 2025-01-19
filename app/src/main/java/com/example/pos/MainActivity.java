@@ -10,6 +10,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.ViewModelProvider;
+
 import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.core.network.NetworkServiceDiscoveryManagerImpl;
 import com.example.customerdisplayhandler.model.ComboGroup;
@@ -24,6 +26,7 @@ import com.example.customerdisplayhandler.utils.IJsonUtil;
 import com.example.customerdisplayhandler.utils.JsonUtilImpl;
 import com.example.pos.ui.AddCustomerDisplayFragment;
 import com.example.pos.ui.CustomerDisplaySettingsDialogFragment;
+import com.example.pos.ui.CustomerDisplayViewModel;
 import com.example.pos.ui.FailedCustomerDisplaysFragment;
 
 import java.util.ArrayList;
@@ -33,6 +36,7 @@ import java.util.stream.Collectors;
 public class MainActivity extends AppCompatActivity {
     private ICustomerDisplayManager customerDisplayManager;
     private IJsonUtil jsonUtil;
+    private CustomerDisplayViewModel customerDisplayViewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,10 +52,15 @@ public class MainActivity extends AppCompatActivity {
         App app = (App) getApplication();
         customerDisplayManager = app.getCustomerDisplayManager();
 
+        customerDisplayViewModel = new ViewModelProvider(this).get(CustomerDisplayViewModel.class);
+        customerDisplayViewModel.setCustomerDisplayManager(customerDisplayManager);
+
+        customerDisplayViewModel.getToastMessage()
+                .observe(this, this::showToast);
+
         jsonUtil = new JsonUtilImpl();
 
         Button customerDisplayButton = findViewById(R.id.go_to_customer_display_settings);
-        NetworkServiceDiscoveryManagerImpl networkServiceDiscoveryManagerImpl = new NetworkServiceDiscoveryManagerImpl(getApplicationContext());
         customerDisplayButton.setOnClickListener(v -> {
             showCustomerDisplaySettingsFragment();
         });

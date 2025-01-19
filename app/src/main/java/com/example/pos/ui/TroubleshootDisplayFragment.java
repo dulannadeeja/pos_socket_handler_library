@@ -31,6 +31,7 @@ public class TroubleshootDisplayFragment extends DialogFragment {
     private ICustomerDisplayManager customerDisplayManager;
     private TextView troubleshootingStatusTv;
     private TroubleshootViewModel troubleshootViewModel;
+    private CustomerDisplayViewModel customerDisplayViewModel;
 
     public static TroubleshootDisplayFragment newInstance(CustomerDisplay customerDisplay) {
         TroubleshootDisplayFragment fragment = new TroubleshootDisplayFragment();
@@ -63,13 +64,14 @@ public class TroubleshootDisplayFragment extends DialogFragment {
         customerDisplayManager = app.getCustomerDisplayManager();
 
         // Initialize the ViewModel
+        customerDisplayViewModel = new ViewModelProvider(requireActivity()).get(CustomerDisplayViewModel.class);
         troubleshootViewModel = new ViewModelProvider(this).get(TroubleshootViewModel.class);
         troubleshootViewModel.setCustomerDisplayManager(customerDisplayManager);
         troubleshootViewModel.startTroubleshooting(customerDisplay, () -> {
             FragmentManager fragmentManager = getParentFragmentManager();
             CustomerDisplaySettingsDialogFragment customerDisplaySettingsDialogFragment = (CustomerDisplaySettingsDialogFragment) fragmentManager.findFragmentByTag(CustomerDisplaySettingsDialogFragment.TAG);
             if (customerDisplaySettingsDialogFragment != null) {
-                customerDisplaySettingsDialogFragment.refreshConnectedDisplays();
+                customerDisplayViewModel.refreshConnectedDisplays();
             }
             FailedCustomerDisplaysFragment failedCustomerDisplaysFragment = (FailedCustomerDisplaysFragment) fragmentManager.findFragmentByTag(FailedCustomerDisplaysFragment.TAG);
             if (failedCustomerDisplaysFragment != null) {

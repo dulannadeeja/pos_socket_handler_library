@@ -16,4 +16,5 @@ public class NetworkConstants {
     public static final String RESPONSE_CONNECTION_APPROVAL = "RESPONSE_CONNECTION_APPROVAL_FROM_SERVER";
     public static final int DEFAULT_SERVER_PORT = 49200;
     public static final String UPDATE_DISPLAY_COMMAND = "UPDATE_CUSTOMER_DISPLAY";
+    public static final String UPDATE_THEME_COMMAND = "UPDATE_THEME";
 }
