@@ -73,15 +73,17 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
 
     @Override
     public Completable sendThemeUpdateToCustomerDisplay(CustomerDisplay updatedCustomerDisplay) {
+        String messageId = UUID.randomUUID().toString();
         return Single.just(updatedCustomerDisplay)
                 .flatMapCompletable(customerDisplay ->
                         sendUpdateToDisplay(
                                 customerDisplay,
                                 customerDisplay.getIsDarkModeActivated(),
                                 NetworkConstants.UPDATE_THEME_COMMAND,
-                                UUID.randomUUID().toString()
+                                messageId
                         )
-                        .doOnComplete(() -> Log.i(TAG, "Successfully sent theme update to display: " + customerDisplay.getCustomerDisplayName()))
+                                .onErrorResumeWith(resendFailedMessage(customerDisplay, customerDisplay.getIsDarkModeActivated(), NetworkConstants.UPDATE_THEME_COMMAND, messageId))
+                                .doOnComplete(() -> Log.i(TAG, "Successfully sent theme update to display: " + customerDisplay.getCustomerDisplayName()))
                 );
     }
 
@@ -100,20 +102,19 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
                 .andThen(Single.just(customerDisplaysWithResults));
     }
 
-    private Completable sendUpdatesToDisplays(List<CustomerDisplay> displays, DisplayUpdates displayUpdates, List<Pair<CustomerDisplay, Boolean>> results,String command, String messageId) {
+    private Completable sendUpdatesToDisplays(List<CustomerDisplay> displays, DisplayUpdates displayUpdates, List<Pair<CustomerDisplay, Boolean>> results, String command, String messageId) {
         return Observable.fromIterable(displays)
                 .flatMapCompletable(display -> sendUpdateToDisplay(display, displayUpdates, command, messageId)
                         .doOnComplete(() -> {
                             Log.i(TAG, "Successfully sent updates to display: " + display.getCustomerDisplayName());
                             results.add(new Pair<>(display, true));
-                        })
-                        .onErrorResumeWith(handleFailedMessage(display, displayUpdates, results,command, messageId))
+                        }).onErrorResumeWith(handleFailedMessage(display, displayUpdates, results, command, messageId))
                 )
                 .onErrorComplete();
     }
 
-    private Completable handleFailedMessage(CustomerDisplay display, DisplayUpdates displayUpdates, List<Pair<CustomerDisplay, Boolean>> results, String command, String messageId) {
-        return resendFailedMessage(display, displayUpdates,command, messageId)
+    private Completable handleFailedMessage(CustomerDisplay display, Object displayUpdates, List<Pair<CustomerDisplay, Boolean>> results, String command, String messageId) {
+        return resendFailedMessage(display, displayUpdates, command, messageId)
                 .doOnComplete(() -> {
                     Log.i(TAG, "Successfully resent updates to display: " + display.getCustomerDisplayID());
                     results.add(new Pair<>(display, true));
@@ -124,10 +125,10 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
                 });
     }
 
-    private Completable resendFailedMessage(CustomerDisplay display, DisplayUpdates displayUpdates, String command, String messageId) {
-        Log.i(TAG, "Resending updates to failed display: " + display.getCustomerDisplayName());
+    private Completable resendFailedMessage(CustomerDisplay display, Object displayUpdates, String command, String messageId) {
+        Log.w(TAG, "Resending updates to failed display: " + display.getCustomerDisplayName());
         return troubleshootDisplay.startSilentTroubleshooting(display)
-                .andThen(sendUpdateToDisplay(display, displayUpdates,command, messageId));
+                .andThen(sendUpdateToDisplay(display, displayUpdates, command, messageId));
     }
 
     private Single<List<CustomerDisplay>> getActivatedCustomerDisplays() {
@@ -158,11 +159,11 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
 
                     if (socket != null) {
                         Log.i(TAG, "Socket found for display: " + pair.first.getCustomerDisplayName());
-                        return sendMessageAndCatchConfirmation(pair.first.getCustomerDisplayID(), socket, jsonMessage,messageId);
+                        return sendMessageAndCatchConfirmation(pair.first.getCustomerDisplayID(), socket, jsonMessage, messageId);
                     } else {
                         Log.i(TAG, "No socket found. Connecting to server for display: " + pair.first.getCustomerDisplayID());
                         return establishNewConnection(pair.first)
-                                .flatMapCompletable(newSocket -> sendMessageAndCatchConfirmation(pair.first.getCustomerDisplayID(), newSocket, jsonMessage,messageId));
+                                .flatMapCompletable(newSocket -> sendMessageAndCatchConfirmation(pair.first.getCustomerDisplayID(), newSocket, jsonMessage, messageId));
                     }
                 });
     }
@@ -179,8 +180,8 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
                             Log.i(TAG, "Is acknowledgement: " + isAcknowledgement);
                             return isAcknowledgement;
                         })
-                        .timeout(30, TimeUnit.SECONDS) // Wait until the timeout expires
                         .firstOrError()
+                        .timeout(30, TimeUnit.SECONDS) // Wait until the timeout expires
                         .flatMapCompletable(serverMessage -> {
                             Log.i(TAG, "Received confirmation from server: " + serverMessage.second);
                             return Completable.complete();

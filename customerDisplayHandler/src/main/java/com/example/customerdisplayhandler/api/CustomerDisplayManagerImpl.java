@@ -141,7 +141,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                         .subscribe(() -> {
                             Log.d("CustomerDisplayManager", "Listening Stopped for server: " + serverId);
                         }, throwable -> {
-                            Log.e("CustomerDisplayManager", "Error receiving message: " + throwable.getMessage());
+                            Log.e("CustomerDisplayManager", "Error receiving message: ",throwable);
                         })
         );
 

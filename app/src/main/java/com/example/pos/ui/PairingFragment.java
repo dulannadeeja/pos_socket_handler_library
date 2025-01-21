@@ -75,7 +75,14 @@ public class PairingFragment extends DialogFragment {
 
         // Start pairing process
         pairingViewModel.setCustomerDisplayManager(customerDisplayManager);
-        pairingViewModel.startPairing(serviceInfo,isDarkMode, this::onCustomerDisplayConnected);
+        pairingViewModel.startPairing(serviceInfo,isDarkMode);
+
+        // Observe pairing completion
+        pairingViewModel.getIsPairingCompleted().observe(getViewLifecycleOwner(), isPairingCompleted -> {
+            if (isPairingCompleted != null && isPairingCompleted) {
+                onCustomerDisplayConnected(serviceInfo);
+            }
+        });
     }
 
     private void onCustomerDisplayConnected(ServiceInfo serviceInfo) {

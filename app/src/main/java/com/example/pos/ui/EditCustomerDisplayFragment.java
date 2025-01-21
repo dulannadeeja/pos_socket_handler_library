@@ -145,7 +145,11 @@ public class EditCustomerDisplayFragment extends DialogFragment {
                 isActivated,
                 isDarkMode
         );
-        customerDisplayViewModel.onUpdateCustomerDisplay(updatedCustomerDisplay, this::dismiss);
+
+        SavingDialogFragment savingDialogFragment = SavingDialogFragment.newInstance(updatedCustomerDisplay);
+        savingDialogFragment.show(requireActivity().getSupportFragmentManager(), SavingDialogFragment.TAG);
+
+        dismiss();
     }
 
     private void onTroubleshootButtonClick() {

@@ -24,6 +24,7 @@ public class PairingViewModel extends ViewModel {
 
     private ICustomerDisplayManager customerDisplayManager;
     private final MutableLiveData<String> pairingStatus = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> isPairingCompleted = new MutableLiveData<>(null);
     private Handler uiHandler;
     private CompositeDisposable compositeDisposable = new CompositeDisposable();
 
@@ -36,26 +37,23 @@ public class PairingViewModel extends ViewModel {
         return pairingStatus;
     }
 
+    public MutableLiveData<Boolean> getIsPairingCompleted() {
+        return isPairingCompleted;
+    }
+
     public void setCustomerDisplayManager(ICustomerDisplayManager customerDisplayManager) {
         this.customerDisplayManager = customerDisplayManager;
     }
 
-    public void startPairing(ServiceInfo serviceInfo,Boolean isDarkMode, OnPairingCompletedListener onPairingCompletedListener) {
-        customerDisplayManager.startPairingCustomerDisplay(serviceInfo,isDarkMode, new WeakPairingServerListener(this, onPairingCompletedListener));
-    }
-
-    public interface OnPairingCompletedListener {
-        void onPairingCompleted(ServiceInfo serviceInfo);
+    public void startPairing(ServiceInfo serviceInfo,Boolean isDarkMode) {
+        customerDisplayManager.startPairingCustomerDisplay(serviceInfo,isDarkMode, new WeakPairingServerListener(this));
     }
 
     private static class WeakPairingServerListener implements OnPairingServerListener {
 
         private final WeakReference<PairingViewModel> viewModelRef;
-        private final WeakReference<OnPairingCompletedListener> onPairingCompletedListener;
-
-        WeakPairingServerListener(PairingViewModel viewModel, OnPairingCompletedListener onPairingCompletedListener) {
+        WeakPairingServerListener(PairingViewModel viewModel) {
             this.viewModelRef = new WeakReference<>(viewModel);
-            this.onPairingCompletedListener = new WeakReference<>(onPairingCompletedListener);
         }
 
         @Override
@@ -114,10 +112,7 @@ public class PairingViewModel extends ViewModel {
             if (viewModel != null && viewModel.uiHandler != null) {
                 viewModel.uiHandler.postDelayed(() -> {
                     viewModel.pairingStatus.setValue("All set, customer display connected successfully...");
-                    OnPairingCompletedListener listener = onPairingCompletedListener.get();
-                    if (listener != null) {
-                        listener.onPairingCompleted(serviceInfo);
-                    }
+                    viewModel.isPairingCompleted.setValue(true);
                 }, 2000);
             }
         }
