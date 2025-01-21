@@ -5,12 +5,14 @@ public class SocketMessageBase {
     private String command;
     private String receiverId;
     private String senderId;
+    private String messageId;
 
-    public SocketMessageBase(Object data, String command, String receiverId, String senderId) {
+    public SocketMessageBase(Object data, String command, String receiverId, String senderId, String messageId) {
         this.data = data;
         this.command = command;
         this.receiverId = receiverId;
         this.senderId = senderId;
+        this.messageId = messageId;
     }
 
     public Object getData() {
@@ -27,5 +29,9 @@ public class SocketMessageBase {
 
     public String getSenderId() {
         return senderId;
+    }
+
+    public String getMessageId() {
+        return messageId;
     }
 }

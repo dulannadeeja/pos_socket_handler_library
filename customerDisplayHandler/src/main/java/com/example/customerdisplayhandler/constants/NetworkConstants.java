@@ -17,4 +17,5 @@ public class NetworkConstants {
     public static final int DEFAULT_SERVER_PORT = 49200;
     public static final String UPDATE_DISPLAY_COMMAND = "UPDATE_CUSTOMER_DISPLAY";
     public static final String UPDATE_THEME_COMMAND = "UPDATE_THEME";
+    public static final String MESSAGE_ACKNOWLEDGEMENT = "ACKNOWLEDGEMENT";
 }

@@ -18,6 +18,8 @@ import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.model.SocketMessageBase;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
 import java.net.Socket;
+import java.util.UUID;
+
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
@@ -113,7 +115,9 @@ public class PairDisplayImpl implements IPairDisplay {
                 connectionReq,
                 NetworkConstants.REQUEST_CONNECTION_APPROVAL,
                 serviceInfo.getServerId(),
-                clientInfo.getClientID()
+                clientInfo.getClientID(),
+                UUID.randomUUID().toString()
+
         );
         return jsonUtil.toJson(socketMessageBase);
     }

@@ -17,6 +17,8 @@ import com.example.customerdisplayhandler.core.interfaces.ISocketsManager;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageListener;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageSender;
 import com.example.customerdisplayhandler.core.interfaces.ITroubleshootDisplay;
+import com.example.customerdisplayhandler.helpers.ISocketMessageProcessHelper;
+import com.example.customerdisplayhandler.helpers.SocketMessageProcessHelperImpl;
 import com.example.customerdisplayhandler.model.DisplayUpdates;
 import com.example.customerdisplayhandler.shared.OnPairingServerListener;
 import com.example.customerdisplayhandler.shared.OnTroubleshootListener;
@@ -41,6 +43,7 @@ import com.example.customerdisplayhandler.utils.JsonUtilImpl;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.UUID;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Single;
@@ -55,6 +58,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     private IJsonUtil jsonUtil;
     private IPManager ipManager;
     private INetworkServiceDiscoveryManager networkServiceDiscoveryManager;
+    private ISocketMessageProcessHelper socketMessageProcessHelper;
     private IMulticastManager multicastManager;
     private ISharedPrefManager sharedPrefManager;
     private IClientInfoManager clientInfoManager;
@@ -94,7 +98,25 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
         tcpMessageSender = new TcpMessageSenderImpl();
         pairDisplay = new PairDisplayImpl(socketsManager, clientInfoManager, jsonUtil, tcpMessageSender, tcpMessageListener, connectedDisplaysRepository);
         troubleshootDisplay = new TroubleshootDisplayImpl(tcpConnector, socketsManager, multicastManager, networkServiceDiscoveryManager, connectedDisplaysRepository);
-        customerDisplayUpdatesSender = new CustomerDisplayUpdatesSenderImpl(troubleshootDisplay, socketsManager, serverPort, connectedDisplaysRepository, tcpMessageSender, tcpConnector, clientInfoManager, jsonUtil);
+        socketMessageProcessHelper = new SocketMessageProcessHelperImpl(jsonUtil);
+        customerDisplayUpdatesSender = new CustomerDisplayUpdatesSenderImpl(troubleshootDisplay, socketsManager, serverPort, connectedDisplaysRepository, tcpMessageSender, tcpConnector, clientInfoManager, jsonUtil,tcpMessageListener,socketMessageProcessHelper);
+
+        observeNewServerConnections();
+    }
+
+    private void observeNewServerConnections() {
+        compositeDisposable.add(tcpConnector.getServerConnectionSubject()
+                        .doOnSubscribe(disposable -> Log.d(TAG, "Observing new server connections"))
+                        .doOnNext(pair -> Log.d(TAG, "New server connection: " + pair.first))
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(pair -> {
+                    Log.d(TAG, "New server connection: " + pair.first);
+                    startListeningForServerMessages(pair.first, pair.second);
+                }, throwable -> {
+                    Log.e(TAG, "Error observing new server connections: " , throwable);
+                })
+        );
     }
 
     @Override
@@ -283,7 +305,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     @Override
     public void sendUpdatesToCustomerDisplays(DisplayUpdates displayUpdates, OnSendUpdatesListener listener) {
         sendUpdatesCompositeDisposable.add(
-                customerDisplayUpdatesSender.sendUpdatesToCustomerDisplays(displayUpdates)
+                customerDisplayUpdatesSender.sendUpdatesToCustomerDisplays(displayUpdates, UUID.randomUUID().toString())
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(

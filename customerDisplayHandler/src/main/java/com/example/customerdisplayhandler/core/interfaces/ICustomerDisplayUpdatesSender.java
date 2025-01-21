@@ -11,6 +11,6 @@ import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 
 public interface ICustomerDisplayUpdatesSender {
-    Single<List<Pair<CustomerDisplay, Boolean>>> sendUpdatesToCustomerDisplays(DisplayUpdates displayUpdates);
+    Single<List<Pair<CustomerDisplay, Boolean>>> sendUpdatesToCustomerDisplays(DisplayUpdates displayUpdates, String messageId);
     Completable sendThemeUpdateToCustomerDisplay(CustomerDisplay customerDisplay);
 }

@@ -1,6 +1,7 @@
 package com.example.customerdisplayhandler.core.network;
 
 import android.util.Log;
+import android.util.Pair;
 
 import com.example.customerdisplayhandler.core.interfaces.ITcpConnector;
 
@@ -11,9 +12,11 @@ import java.net.SocketAddress;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subjects.PublishSubject;
 
 public class TcpConnectorImpl implements ITcpConnector {
     private static final String TAG = TcpConnectorImpl.class.getSimpleName();
+    private final PublishSubject<Pair<String,Socket>> serverConnectionSubject = PublishSubject.create();
 
     @Override
     public Single<Socket> connectToServer(String serverIPAddress, int serverPort) {
@@ -22,6 +25,7 @@ public class TcpConnectorImpl implements ITcpConnector {
                         Socket socket = new Socket(serverIPAddress, serverPort);
                         socket.setKeepAlive(true);
                         Log.i(TAG, "Connected to server: " + serverIPAddress + ":" + serverPort);
+                        serverConnectionSubject.onNext(new Pair<>(serverIPAddress, socket));
                         emitter.onSuccess(socket);
                     } catch (Exception e) {
                         Log.e(TAG, "Error connecting to server: " + e.getMessage());
@@ -44,6 +48,7 @@ public class TcpConnectorImpl implements ITcpConnector {
                         socket.connect(socketAddress, timeoutInMillis);
                         socket.setKeepAlive(true);
                         Log.i(TAG, "Connected to server: " + serverIPAddress + ":" + serverPort);
+                        serverConnectionSubject.onNext(new Pair<>(serverIPAddress, socket));
                         emitter.onSuccess(socket);
                     } catch (Exception e) {
                         Log.e(TAG, "Error connecting to server: " + e.getMessage());
@@ -70,5 +75,9 @@ public class TcpConnectorImpl implements ITcpConnector {
                 Log.e(TAG, "Error disconnecting from server: " + e.getMessage());
             }
         }).subscribeOn(Schedulers.io()); // Perform operation on IO thread
+    }
+@Override
+    public PublishSubject<Pair<String, Socket>> getServerConnectionSubject() {
+        return serverConnectionSubject;
     }
 }
