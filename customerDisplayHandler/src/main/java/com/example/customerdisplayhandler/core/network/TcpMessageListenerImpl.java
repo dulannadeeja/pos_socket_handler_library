@@ -18,7 +18,7 @@ import io.reactivex.rxjava3.subjects.ReplaySubject;
 
 public class TcpMessageListenerImpl implements ITcpMessageListener {
     private static final String TAG = TcpMessageListenerImpl.class.getSimpleName();
-    private volatile ReplaySubject<Pair<String, String>> serverMessageSubject = ReplaySubject.create();
+    private volatile BehaviorSubject<Pair<String, String>> serverMessageSubject = BehaviorSubject.create();
     private final ConcurrentHashMap<Socket, Completable> activeListeners = new ConcurrentHashMap<>();
 
     @Override
@@ -51,7 +51,7 @@ public class TcpMessageListenerImpl implements ITcpMessageListener {
         return listeningTask;
     }
 
-    public ReplaySubject<Pair<String, String>> getServerMessageSubject() {
+    public BehaviorSubject<Pair<String, String>> getServerMessageSubject() {
         return serverMessageSubject;
     }
 }

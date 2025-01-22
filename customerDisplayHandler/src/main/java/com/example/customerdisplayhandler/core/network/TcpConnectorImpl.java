@@ -3,6 +3,7 @@ package com.example.customerdisplayhandler.core.network;
 import android.util.Log;
 import android.util.Pair;
 
+import com.example.customerdisplayhandler.core.interfaces.ISocketsManager;
 import com.example.customerdisplayhandler.core.interfaces.ITcpConnector;
 
 import java.net.InetSocketAddress;
@@ -17,6 +18,9 @@ import io.reactivex.rxjava3.subjects.PublishSubject;
 public class TcpConnectorImpl implements ITcpConnector {
     private static final String TAG = TcpConnectorImpl.class.getSimpleName();
     private final PublishSubject<Pair<String,Socket>> serverConnectionSubject = PublishSubject.create();
+
+    public TcpConnectorImpl() {
+    }
 
     @Override
     public Single<Socket> connectToServer(String serverIPAddress, int serverPort) {
@@ -75,9 +79,5 @@ public class TcpConnectorImpl implements ITcpConnector {
                 Log.e(TAG, "Error disconnecting from server: " + e.getMessage());
             }
         }).subscribeOn(Schedulers.io()); // Perform operation on IO thread
-    }
-@Override
-    public PublishSubject<Pair<String, Socket>> getServerConnectionSubject() {
-        return serverConnectionSubject;
     }
 }

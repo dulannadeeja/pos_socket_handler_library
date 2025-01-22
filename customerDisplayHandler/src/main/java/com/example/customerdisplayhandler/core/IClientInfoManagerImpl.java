@@ -16,6 +16,7 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 
 public class IClientInfoManagerImpl implements IClientInfoManager {
+    private static final String TAG = IClientInfoManagerImpl.class.getSimpleName();
     private final ISharedPrefManager ISharedPrefManager;
     private final IPManager ipManager;
     private final IJsonUtil jsonUtil;
@@ -29,9 +30,9 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
     @Override
     public Single<ClientInfo> getClientInfo() {
         return ipManager.getDeviceLocalIPAddress()
-                .doOnSuccess(ipAddress -> Log.i("ClientInfoManager", "Device IP Address: " + ipAddress))
                 .flatMap(this::getOrUpdateClientInfo)
-                .onErrorResumeNext(this::createAndSaveNewClientInfo);
+                .onErrorResumeNext(this::createAndSaveNewClientInfo)
+                .doOnError(throwable -> Log.wtf(TAG, "Error while getting client info: " + throwable.getMessage(), throwable));
     }
 
     private Single<ClientInfo> getOrUpdateClientInfo(String ipAddress) {
@@ -42,15 +43,12 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
                     } else {
                         return updateAndSaveClientInfo(clientInfo, ipAddress);
                     }
-                })
-                .subscribeOn(Schedulers.io())
-                .doOnSuccess(clientInfo -> Log.i("ClientInfoManager", "Client Info: " + clientInfo.toString()));
+                }).subscribeOn(Schedulers.io());
     }
 
     private Single<ClientInfo> createAndSaveNewClientInfo(Throwable throwable) {
         return ipManager.getDeviceLocalIPAddress()
                 .flatMap(this::createNewClientInfo)
-                .doOnSuccess(clientInfo -> Log.i("ClientInfoManager", "New Client Info: " + clientInfo.toString()))
                 .subscribeOn(Schedulers.io());
     }
 
@@ -60,8 +58,7 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
         ClientInfo newClientInfo = new ClientInfo(clientID, ipAddress, deviceName);
         return saveClientInfo(newClientInfo)
                 .andThen(Single.just(newClientInfo))
-                .subscribeOn(Schedulers.io())
-                .doOnSuccess(clientInfo -> Log.i("ClientInfoManager", "New Client Info: " + clientInfo.toString()));
+                .subscribeOn(Schedulers.io());
     }
 
     private boolean isSameIPAddress(ClientInfo clientInfo, String ipAddress) {
@@ -76,8 +73,7 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
         );
         return saveClientInfo(updatedClientInfo)
                 .andThen(Single.just(updatedClientInfo))
-                .subscribeOn(Schedulers.io())
-                .doOnSuccess(clientInfo1 -> Log.i("ClientInfoManager", "Updated Client Info: " + clientInfo1.toString()));
+                .subscribeOn(Schedulers.io());
     }
 
     private Single<ClientInfo> retrieveClientInfo() {
@@ -94,8 +90,7 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
                         emitter.onError(e);
                     }
                 })
-                .subscribeOn(Schedulers.io())
-                .doOnError(throwable -> Log.e("ClientInfoManager", "Error retrieving POS info: " + throwable.getMessage()));
+                .subscribeOn(Schedulers.io());
     }
 
     private Completable saveClientInfo(ClientInfo clientInfo) {
@@ -109,7 +104,6 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
                         emitter.onError(newException);
                     }
                 })
-                .subscribeOn(Schedulers.io())
-                .doOnError(throwable -> Log.e("ClientInfoManager", "Error saving POS info: " + throwable.getMessage()));
+                .subscribeOn(Schedulers.io());
     }
 }

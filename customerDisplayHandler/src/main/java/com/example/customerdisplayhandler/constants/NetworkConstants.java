@@ -18,4 +18,7 @@ public class NetworkConstants {
     public static final String UPDATE_DISPLAY_COMMAND = "UPDATE_CUSTOMER_DISPLAY";
     public static final String UPDATE_THEME_COMMAND = "UPDATE_THEME";
     public static final String MESSAGE_ACKNOWLEDGEMENT = "ACKNOWLEDGEMENT";
+    public static final int WAITING_FOR_ACKNOWLEDGEMENT_TIMEOUT = 3000;
+    public static final int WAITING_FOR_SOCKET_CONNECTION_TIMEOUT = 2000;
+    public static final int WAITING_FOR_CONNECTION_APPROVAL_TIMEOUT = 60000;
 }

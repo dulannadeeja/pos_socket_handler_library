@@ -13,8 +13,6 @@ import com.example.customerdisplayhandler.core.interfaces.ITcpMessageListener;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageSender;
 import com.example.customerdisplayhandler.core.interfaces.ITroubleshootDisplay;
 import com.example.customerdisplayhandler.helpers.ISocketMessageProcessHelper;
-import com.example.customerdisplayhandler.helpers.SocketMessageProcessHelperImpl;
-import com.example.customerdisplayhandler.model.ClientInfo;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.model.DisplayUpdates;
 import com.example.customerdisplayhandler.model.ServiceInfo;
@@ -26,7 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import io.reactivex.rxjava3.core.Completable;
@@ -39,10 +36,8 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
     private final ITroubleshootDisplay troubleshootDisplay;
     private final ISocketsManager socketsManager;
     private final ISocketMessageProcessHelper socketMessageProcessHelper;
-    private final int serverPort;
     private final IConnectedDisplaysRepository connectedDisplaysRepository;
     private final ITcpMessageSender tcpMessageSender;
-    private final ITcpConnector tcpConnector;
     private final IClientInfoManager clientInfoManager;
     private final IJsonUtil jsonUtil;
     private final ITcpMessageListener tcpMessageListener;
@@ -50,10 +45,8 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
     public CustomerDisplayUpdatesSenderImpl(
             ITroubleshootDisplay troubleshootDisplay,
             ISocketsManager socketsManager,
-            int serverPort,
             IConnectedDisplaysRepository connectedDisplaysRepository,
             ITcpMessageSender tcpMessageSender,
-            ITcpConnector tcpConnector,
             IClientInfoManager clientInfoManager,
             IJsonUtil jsonUtil,
             ITcpMessageListener tcpMessageListener,
@@ -61,10 +54,8 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
     ) {
         this.troubleshootDisplay = troubleshootDisplay;
         this.socketsManager = socketsManager;
-        this.serverPort = serverPort;
         this.connectedDisplaysRepository = connectedDisplaysRepository;
         this.tcpMessageSender = tcpMessageSender;
-        this.tcpConnector = tcpConnector;
         this.clientInfoManager = clientInfoManager;
         this.jsonUtil = jsonUtil;
         this.tcpMessageListener = tcpMessageListener;
@@ -148,58 +139,15 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
 
     private Completable sendUpdateToDisplay(CustomerDisplay display, Object displayUpdates, String command, String messageId) {
         return Single.just(display)
-                .flatMap(d -> clientInfoManager.getClientInfo().map(clientInfo -> new Pair<>(d, clientInfo)))
-                .flatMapCompletable(pair -> {
-                    Log.i(TAG, "Sending updates to display: " + pair.first.getCustomerDisplayName());
-                    Socket socket = socketsManager.findSocketIfConnected(pair.first.getCustomerDisplayID());
-
-                    // Prepare the message to be sent, according to the protocol
-                    SocketMessageBase socketMessageBase = new SocketMessageBase(displayUpdates, command, pair.first.getCustomerDisplayID(), pair.second.getClientID(), messageId);
-                    String jsonMessage = jsonUtil.toJson(socketMessageBase);
-
-                    if (socket != null) {
-                        Log.i(TAG, "Socket found for display: " + pair.first.getCustomerDisplayName());
-                        return sendMessageAndCatchConfirmation(pair.first.getCustomerDisplayID(), socket, jsonMessage, messageId);
-                    } else {
-                        Log.i(TAG, "No socket found. Connecting to server for display: " + pair.first.getCustomerDisplayID());
-                        return establishNewConnection(pair.first)
-                                .flatMapCompletable(newSocket -> sendMessageAndCatchConfirmation(pair.first.getCustomerDisplayID(), newSocket, jsonMessage, messageId));
-                    }
-                });
-    }
-
-    private Completable sendMessageAndCatchConfirmation(String serverId, Socket socket, String message, String messageId) {
-        return tcpMessageSender.sendMessageToServer(serverId, socket, message)
-                .andThen(tcpMessageListener.getServerMessageSubject()
-                        .doOnNext(serverMessage -> Log.i(TAG, "Received message from server: " + serverMessage.second))
-                        .filter(serverMessage -> {
-                            String acknowledgementMessageId = socketMessageProcessHelper.getAcknowledgeMessageId(serverMessage.second);
-                            Log.i(TAG, "Acknowledgement message ID: " + acknowledgementMessageId);
-                            Log.i(TAG, "Expected message ID: " + messageId);
-                            boolean isAcknowledgement = acknowledgementMessageId != null && acknowledgementMessageId.equals(messageId);
-                            Log.i(TAG, "Is acknowledgement: " + isAcknowledgement);
-                            return isAcknowledgement;
-                        })
-                        .firstOrError()
-                        .timeout(30, TimeUnit.SECONDS) // Wait until the timeout expires
-                        .flatMapCompletable(serverMessage -> {
-                            Log.i(TAG, "Received confirmation from server: " + serverMessage.second);
-                            return Completable.complete();
-                        })
+                .flatMap(d -> clientInfoManager.getClientInfo())
+                .flatMap(clientInfo -> socketsManager.reconnectIfDisconnected(display.getCustomerDisplayID(),display.getCustomerDisplayIpAddress())
+                        .map(socket -> new Pair<>(socket, clientInfo))
                 )
-                .doOnError(error -> Log.e(TAG, "Error sending message to display: " + error.getMessage(), error));
-    }
-
-    private Single<Socket> establishNewConnection(CustomerDisplay display) {
-        return tcpConnector.tryToConnectWithingTimeout(display.getCustomerDisplayIpAddress(), serverPort, 2000)
-                .doOnSuccess(socket -> {
-                    Log.i(TAG, "Successfully connected to server for display: " + display.getCustomerDisplayName());
-                    socketsManager.addConnectedSocket(socket, new ServiceInfo(
-                            display.getCustomerDisplayID(),
-                            display.getCustomerDisplayName(),
-                            display.getCustomerDisplayIpAddress(),
-                            null
-                    ));
+                .flatMapCompletable(pair -> {
+                    // Prepare the message to be sent, according to the protocol
+                    SocketMessageBase socketMessageBase = new SocketMessageBase(displayUpdates, command, display.getCustomerDisplayID(), pair.second.getClientID(), messageId);
+                    String jsonMessage = jsonUtil.toJson(socketMessageBase);
+                    return tcpMessageSender.sendMessageAndCatchAcknowledgement(display.getCustomerDisplayID(), pair.first, jsonMessage, messageId, pair.second.getClientID());
                 });
     }
 }

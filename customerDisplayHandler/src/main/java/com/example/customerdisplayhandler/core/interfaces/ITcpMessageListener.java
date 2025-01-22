@@ -11,5 +11,5 @@ import io.reactivex.rxjava3.subjects.ReplaySubject;
 
 public interface ITcpMessageListener {
     Completable startListening(String serverId, Socket socket);
-    ReplaySubject<Pair<String, String>> getServerMessageSubject();
+    BehaviorSubject<Pair<String, String>> getServerMessageSubject();
 }

@@ -3,6 +3,7 @@ package com.example.customerdisplayhandler.helpers;
 import android.content.Context;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.util.Log;
 
 import java.lang.ref.WeakReference;
 import java.util.Locale;
@@ -47,6 +48,9 @@ public class IPManagerImpl implements IPManager {
                     } catch (Exception e) {
                         emitter.onError(e);  // Emit the error if something fails
                     }
+                })
+                .doOnError(throwable -> {
+                    Log.wtf(TAG, "Error while getting device IP address: " + throwable.getMessage(), throwable);
                 })
                 .subscribeOn(Schedulers.io()) // Execute the task on a background thread
                 .observeOn(Schedulers.single()); // Observe on a single thread (main thread or UI)

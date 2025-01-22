@@ -39,7 +39,7 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
 
     @Override
     public Completable startManualTroubleshooting(CustomerDisplay customerDisplay, OnTroubleshootListener listener) {
-        return disconnectIfConnected(customerDisplay)
+        return socketsManager.disconnectIfConnected(customerDisplay.getCustomerDisplayID())
                 .doOnComplete(() -> Log.i(TAG, "looking for connected sockets and disconnection completed"))
                 .andThen(handleSocketConnection(customerDisplay, listener)
                         .doOnComplete(listener::onTroubleshootCompleted)
@@ -49,7 +49,7 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
 
     @Override
     public Completable startSilentTroubleshooting(CustomerDisplay customerDisplay) {
-        return disconnectIfConnected(customerDisplay)
+        return socketsManager.disconnectIfConnected(customerDisplay.getCustomerDisplayID())
                 .doOnComplete(() -> Log.i(TAG, "Disconnected from existing connections"))
                 .andThen(handleSocketConnectionWithoutListeners(customerDisplay))
                 .subscribeOn(Schedulers.io())
@@ -78,7 +78,7 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
     }
 
     private Completable connectToServiceWithoutListeners(ServiceInfo serviceInfo, CustomerDisplay customerDisplay) {
-        return tcpConnector.connectToServer(serviceInfo.getIpAddress(), NetworkConstants.DEFAULT_SERVER_PORT)
+        return socketsManager.reconnect(customerDisplay.getCustomerDisplayID(), serviceInfo.getIpAddress())
                 .flatMapCompletable(socket -> updateCustomerDisplay(socket, serviceInfo, customerDisplay));
     }
 
@@ -128,7 +128,7 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
     }
 
     private Completable connectToService(ServiceInfo newServiceInfo, CustomerDisplay customerDisplay, OnTroubleshootListener listener) {
-        return tcpConnector.connectToServer(newServiceInfo.getIpAddress(), NetworkConstants.DEFAULT_SERVER_PORT)
+        return socketsManager.reconnect(newServiceInfo.getServerId(), newServiceInfo.getIpAddress())
                 .doOnSuccess(socket -> Log.i(TAG, "TCP connection established with customer display"))
                 .doOnSubscribe(disposable -> listener.onAttemptingToConnect())
                 .flatMapCompletable((socket) -> updateCustomerDisplay(socket, newServiceInfo, customerDisplay)
@@ -136,14 +136,7 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
                 );
     }
 
-    private Completable disconnectIfConnected(CustomerDisplay customerDisplay) {
-        Socket connectedSocket = socketsManager.findSocketIfConnected(customerDisplay.getCustomerDisplayID());
-        if (connectedSocket != null) {
-            socketsManager.removeConnectedSocket(customerDisplay.getCustomerDisplayID());
-            return tcpConnector.disconnectSafelyFromServer(connectedSocket);
-        }
-        return Completable.complete();
-    }
+
 
     private Completable updateCustomerDisplay(Socket socket, ServiceInfo newServiceInfo, CustomerDisplay customerDisplay) {
         CustomerDisplay updatedCustomerDisplay = new CustomerDisplay(
@@ -154,10 +147,6 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
                 customerDisplay.getIsDarkModeActivated()
         );
         return connectedDisplaysRepository.updateCustomerDisplay(updatedCustomerDisplay).ignoreElement()
-                .doOnComplete(() -> {
-                    Log.i(TAG, "Customer display updated successfully with new IP: " + newServiceInfo.getIpAddress());
-                    socketsManager.addConnectedSocket(socket, newServiceInfo);
-                })
                 .subscribeOn(Schedulers.io());
 
     }

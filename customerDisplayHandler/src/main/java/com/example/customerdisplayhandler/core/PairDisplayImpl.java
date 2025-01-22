@@ -1,12 +1,15 @@
 package com.example.customerdisplayhandler.core;
 
 import android.util.Log;
+import android.util.Pair;
 
 import com.example.customerdisplayhandler.constants.NetworkConstants;
 import com.example.customerdisplayhandler.core.interfaces.IClientInfoManager;
 import com.example.customerdisplayhandler.core.interfaces.IConnectedDisplaysRepository;
+import com.example.customerdisplayhandler.core.interfaces.ICustomerDisplayUpdatesSender;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageListener;
 import com.example.customerdisplayhandler.core.interfaces.ITcpMessageSender;
+import com.example.customerdisplayhandler.helpers.ISocketMessageProcessHelper;
 import com.example.customerdisplayhandler.model.ConnectionReq;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 import com.example.customerdisplayhandler.shared.OnPairingServerListener;
@@ -17,8 +20,10 @@ import com.example.customerdisplayhandler.model.ConnectionApproval;
 import com.example.customerdisplayhandler.model.ServiceInfo;
 import com.example.customerdisplayhandler.model.SocketMessageBase;
 import com.example.customerdisplayhandler.utils.IJsonUtil;
+
 import java.net.Socket;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
@@ -34,13 +39,17 @@ public class PairDisplayImpl implements IPairDisplay {
     private ITcpMessageSender tcpMessageSender;
     private ITcpMessageListener tcpMessageListener;
     private IConnectedDisplaysRepository connectedDisplaysRepository;
+    private ICustomerDisplayUpdatesSender customerDisplayUpdatesSender;
+    private ISocketMessageProcessHelper socketMessageProcessHelper;
 
     public PairDisplayImpl(ISocketsManager socketsManager,
                            IClientInfoManager clientInfoManager,
                            IJsonUtil jsonUtil,
                            ITcpMessageSender tcpMessageSender,
                            ITcpMessageListener tcpMessageListener,
-                           IConnectedDisplaysRepository connectedDisplaysRepository
+                           IConnectedDisplaysRepository connectedDisplaysRepository,
+                           ICustomerDisplayUpdatesSender customerDisplayUpdatesSender,
+                           ISocketMessageProcessHelper socketMessageProcessHelper
     ) {
         this.socketsManager = socketsManager;
         this.clientInfoManager = clientInfoManager;
@@ -48,63 +57,76 @@ public class PairDisplayImpl implements IPairDisplay {
         this.tcpMessageSender = tcpMessageSender;
         this.tcpMessageListener = tcpMessageListener;
         this.connectedDisplaysRepository = connectedDisplaysRepository;
+        this.customerDisplayUpdatesSender = customerDisplayUpdatesSender;
+        this.socketMessageProcessHelper = socketMessageProcessHelper;
     }
 
-    public Completable startDisplayPairing(Socket connectedSocket, ServiceInfo serviceInfo,Boolean isDarkMode, OnPairingServerListener listener) {
-        Log.d(TAG, "Connecting to server: " + serviceInfo.getIpAddress());
-        return Completable.mergeArray(
-                tcpMessageListener.startListening(serviceInfo.getServerId(), connectedSocket),
-                clientInfoManager.getClientInfo()
-                .flatMapCompletable(clientInfo -> getConnectionApprovalStatus(serviceInfo, connectedSocket, clientInfo, isDarkMode, listener)
-                        .flatMapCompletable(connectionApproval ->{
-                            if (connectionApproval != null && connectionApproval.isConnectionApproved() != null && connectionApproval.isConnectionApproved()) {
+    // 1. retrieve information about the client
+    // 2. send a connection request to the server and wait for a ack
+    // 3. if the server approves the connection, save the connection
+    public Completable startDisplayPairing(Socket connectedSocket, ServiceInfo serviceInfo, Boolean isDarkMode, OnPairingServerListener listener) {
+        return clientInfoManager.getClientInfo()
+                .flatMapCompletable(clientInfo -> getConnectionApprovalStatus(serviceInfo, UUID.randomUUID().toString(), clientInfo, isDarkMode, listener)
+                        .flatMapCompletable(connectionApproval -> {
+                            if (connectionApproval.isConnectionApproved()) {
                                 listener.onConnectionRequestApproved(serviceInfo);
-                                CustomerDisplay customerDisplay = new CustomerDisplay(
-                                        connectionApproval.getServerID(),
-                                        serviceInfo.getDeviceName(),
-                                        connectionApproval.getServerIpAddress(),
-                                        true,
-                                        isDarkMode
-                                );
-                                return connectedDisplaysRepository.getCustomerDisplayById(connectionApproval.getServerID())
-                                        .defaultIfEmpty(new CustomerDisplay(null,null,null,false,false))
-                                        .flatMapCompletable(existingCustomerDisplay -> {
-                                            if (existingCustomerDisplay != null && existingCustomerDisplay.getCustomerDisplayID() != null) {
-                                                return connectedDisplaysRepository
-                                                        .updateCustomerDisplay(customerDisplay)
-                                                        .ignoreElement();
-                                            } else {
-                                                return connectedDisplaysRepository
-                                                        .addCustomerDisplay(customerDisplay);
-                                            }
-                                        })
+                                return onApprovalReceived(serviceInfo,connectionApproval,isDarkMode)
                                         .doOnComplete(() -> listener.onSavedEstablishedConnection(serviceInfo));
-                            }else{
+                            } else {
                                 listener.onConnectionRequestRejected();
                                 return Completable.complete();
                             }
-                        })))
+                        }))
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread());
     }
 
-    private Single<ConnectionApproval> getConnectionApprovalStatus(ServiceInfo serviceInfo, Socket socket, ClientInfo clientInfo,Boolean isDarkMode, OnPairingServerListener listener) {
-        Log.i(TAG, "Starting pairing process with customer display.");
+    private Completable onApprovalReceived(ServiceInfo serviceInfo,ConnectionApproval connectionApproval, Boolean isDarkMode) {
+        CustomerDisplay customerDisplay = new CustomerDisplay(
+                connectionApproval.getServerID(),
+                serviceInfo.getDeviceName(),
+                connectionApproval.getServerIpAddress(),
+                true,
+                isDarkMode
+        );
+        return  connectedDisplaysRepository.getCustomerDisplayById(connectionApproval.getServerID())
+                .switchIfEmpty(connectedDisplaysRepository.addCustomerDisplay(customerDisplay).toSingle(() -> customerDisplay))
+                .flatMapCompletable(existingCustomerDisplay -> connectedDisplaysRepository.updateCustomerDisplay(customerDisplay).ignoreElement());
+    }
 
+    private Single<ConnectionApproval> getConnectionApprovalStatus(ServiceInfo serviceInfo, String connectionReqMessageId, ClientInfo clientInfo, Boolean isDarkMode, OnPairingServerListener listener) {
         // Send connection approval request and listen for server response
-        return tcpMessageSender
-                .sendMessageToServer(serviceInfo.getServerId(), socket, createConnectionApprovalRequest(serviceInfo, clientInfo, isDarkMode))
-                .doOnSubscribe(disposable -> listener.onConnectionRequestSent())
-                .andThen(tcpMessageListener.getServerMessageSubject().firstOrError())
-                .map(serverMessage -> {
-                    Log.i(TAG, "Message received from server: " + serverMessage.second);
-                    return processConnectionApproval(serverMessage.second);
-                })
-                .doOnError(e -> Log.e(TAG, "Error during pairing process: " + e.getMessage(), e))
+        return sendConnectionReq(serviceInfo, isDarkMode, connectionReqMessageId)
+                .doOnComplete(listener::onConnectionRequestSent)
+                .andThen(waitForConnectionApprovalResponse(clientInfo.getClientID(), connectionReqMessageId))
+                .doOnSuccess(connectionApproval -> Log.i(TAG, "Connection approval received from the " + serviceInfo.getDeviceName() + " with IP: " + serviceInfo.getIpAddress()))
                 .subscribeOn(Schedulers.io());
     }
 
-    private String createConnectionApprovalRequest(ServiceInfo serviceInfo, ClientInfo clientInfo, Boolean isDarkMode) {
+    private Completable sendConnectionReq(ServiceInfo serviceInfo, Boolean isDarkMode, String connectionReqMessageId) {
+        return clientInfoManager.getClientInfo()
+                .flatMapCompletable(clientInfo -> {
+                    String connectionApprovalReq = createConnectionApprovalRequest(serviceInfo, clientInfo, isDarkMode, connectionReqMessageId);
+                    return socketsManager.reconnectIfDisconnected(serviceInfo.getServerId(), serviceInfo.getIpAddress())
+                            .flatMapCompletable(reconnectedSocket -> tcpMessageSender.sendOneWayMessage(reconnectedSocket, serviceInfo.getServerId(), connectionApprovalReq)
+                            );
+                })
+                .subscribeOn(Schedulers.io());
+    }
+
+    private Single<ConnectionApproval> waitForConnectionApprovalResponse(String clientId, String connectionReqMessageId) {
+        return tcpMessageListener.getServerMessageSubject()
+                .filter(serverMessage -> {
+                    ConnectionApproval connectionApproval = socketMessageProcessHelper.getConnectionApproval(serverMessage.second, clientId, connectionReqMessageId);
+                    return connectionApproval != null;
+                })
+                .firstOrError()
+                .timeout(NetworkConstants.WAITING_FOR_CONNECTION_APPROVAL_TIMEOUT, TimeUnit.MILLISECONDS)
+                .map(serverMessage -> socketMessageProcessHelper.getConnectionApproval(serverMessage.second, clientId, connectionReqMessageId))
+                .doOnError(error -> Log.w(TAG, "Connection approval not received from the server within the timeout period"));
+    }
+
+    private String createConnectionApprovalRequest(ServiceInfo serviceInfo, ClientInfo clientInfo, Boolean isDarkMode, String messageID) {
         ConnectionReq connectionReq = new ConnectionReq(
                 clientInfo.getClientID(),
                 clientInfo.getClientIpAddress(),
@@ -116,71 +138,10 @@ public class PairDisplayImpl implements IPairDisplay {
                 NetworkConstants.REQUEST_CONNECTION_APPROVAL,
                 serviceInfo.getServerId(),
                 clientInfo.getClientID(),
-                UUID.randomUUID().toString()
+                messageID
 
         );
         return jsonUtil.toJson(socketMessageBase);
-    }
-
-    private ConnectionApproval processConnectionApproval(String rawMessage) {
-        try {
-            if (rawMessage == null || rawMessage.isEmpty()) {
-                Log.e(TAG, "Invalid connection approval message received: " + rawMessage);
-                return createConnectionApproval();
-            }
-
-            String message = rawMessage.trim();
-            if (rawMessage.startsWith(";")) {
-                return createConnectionApproval();
-            }
-
-            SocketMessageBase socketMessageBase = jsonUtil.toObj(message, SocketMessageBase.class);
-
-            if (!isValidSocketMessage(socketMessageBase)) {
-                Log.e(TAG, "Invalid connection approval message structure: " + message);
-                return createConnectionApproval();
-            }
-
-            if (!NetworkConstants.RESPONSE_CONNECTION_APPROVAL.equals(socketMessageBase.getCommand())) {
-                Log.e(TAG, "Unexpected command received: " + message);
-                return createConnectionApproval();
-            }
-
-            ConnectionApproval connectionApproval = parseConnectionApproval(socketMessageBase.getData());
-            if (connectionApproval != null && connectionApproval.isConnectionApproved() != null) {
-                return connectionApproval;
-            }
-
-            Log.e(TAG, "Connection approval data is null or invalid.");
-            return createConnectionApproval();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error processing connection approval: " + e.getMessage(), e);
-            return createConnectionApproval();
-        }
-    }
-
-    private ConnectionApproval createConnectionApproval() {
-        return new ConnectionApproval(null, null, null, null);
-    }
-
-    private ConnectionApproval parseConnectionApproval(Object data) {
-        try {
-            String jsonData = jsonUtil.toJson(data);
-            return jsonUtil.toObj(jsonData, ConnectionApproval.class);
-        } catch (Exception e) {
-            Log.e(TAG, "Error parsing connection approval data: " + e.getMessage(), e);
-            return null;
-        }
-    }
-
-    private boolean isValidSocketMessage(SocketMessageBase socketMessageBase) {
-        return socketMessageBase != null &&
-                socketMessageBase.getCommand() != null &&
-                !socketMessageBase.getCommand().isEmpty() &&
-                socketMessageBase.getData() != null &&
-                socketMessageBase.getSenderId() != null &&
-                socketMessageBase.getReceiverId() != null;
     }
 }
 

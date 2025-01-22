@@ -12,5 +12,4 @@ public interface ITcpConnector {
     Single<Socket> connectToServer(String serverIPAddress, int serverPort);
     Single<Socket> tryToConnectWithingTimeout(String serverIPAddress, int serverPort, int timeoutInMillis);
     Completable disconnectSafelyFromServer(Socket serverSocket);
-    PublishSubject<Pair<String, Socket>> getServerConnectionSubject();
 }

@@ -89,33 +89,30 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
         networkServiceDiscoveryManager = new NetworkServiceDiscoveryManagerImpl(context);
         sharedPrefManager = ISharedPrefManagerImpl.getInstance(context);
         ipManager = new IPManagerImpl(context);
+        socketMessageProcessHelper = new SocketMessageProcessHelperImpl(jsonUtil);
         multicastManager = new MulticastManagerImpl(NetworkConstants.MULTICAST_GROUP_ADDRESS, NetworkConstants.MULTICAST_PORT);
         clientInfoManager = new IClientInfoManagerImpl(ipManager, sharedPrefManager, jsonUtil);
         connectedDisplaysRepository = ConnectedDisplaysRepositoryImpl.getInstance(sharedPrefManager, jsonUtil);
-        socketsManager = SocketsManagerImpl.getInstance();
-        tcpConnector = new TcpConnectorImpl();
         tcpMessageListener = new TcpMessageListenerImpl();
-        tcpMessageSender = new TcpMessageSenderImpl();
-        pairDisplay = new PairDisplayImpl(socketsManager, clientInfoManager, jsonUtil, tcpMessageSender, tcpMessageListener, connectedDisplaysRepository);
+        tcpMessageSender = new TcpMessageSenderImpl(tcpMessageListener,socketMessageProcessHelper);
+        socketsManager = SocketsManagerImpl.getInstance(new TcpConnectorImpl(), tcpMessageListener);
+        pairDisplay = new PairDisplayImpl(socketsManager, clientInfoManager, jsonUtil, tcpMessageSender, tcpMessageListener, connectedDisplaysRepository, customerDisplayUpdatesSender, socketMessageProcessHelper);
         troubleshootDisplay = new TroubleshootDisplayImpl(tcpConnector, socketsManager, multicastManager, networkServiceDiscoveryManager, connectedDisplaysRepository);
-        socketMessageProcessHelper = new SocketMessageProcessHelperImpl(jsonUtil);
-        customerDisplayUpdatesSender = new CustomerDisplayUpdatesSenderImpl(troubleshootDisplay, socketsManager, serverPort, connectedDisplaysRepository, tcpMessageSender, tcpConnector, clientInfoManager, jsonUtil,tcpMessageListener,socketMessageProcessHelper);
+        customerDisplayUpdatesSender = new CustomerDisplayUpdatesSenderImpl(troubleshootDisplay, socketsManager, connectedDisplaysRepository,tcpMessageSender,clientInfoManager,jsonUtil,tcpMessageListener,socketMessageProcessHelper);
 
         observeNewServerConnections();
     }
 
     private void observeNewServerConnections() {
-        compositeDisposable.add(tcpConnector.getServerConnectionSubject()
-                        .doOnSubscribe(disposable -> Log.d(TAG, "Observing new server connections"))
-                        .doOnNext(pair -> Log.d(TAG, "New server connection: " + pair.first))
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(pair -> {
-                    Log.d(TAG, "New server connection: " + pair.first);
-                    startListeningForServerMessages(pair.first, pair.second);
-                }, throwable -> {
-                    Log.e(TAG, "Error observing new server connections: " , throwable);
-                })
+        compositeDisposable.add(
+                socketsManager.getSocketConnectionSubject()
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(pair -> {
+                            startListeningForServerMessages(pair.first, pair.second);
+                        }, throwable -> {
+                            Log.e(TAG, "Error observing new server connections: ", throwable);
+                        })
         );
     }
 
@@ -141,7 +138,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                         .subscribe(() -> {
                             Log.d("CustomerDisplayManager", "Listening Stopped for server: " + serverId);
                         }, throwable -> {
-                            Log.e("CustomerDisplayManager", "Error receiving message: ",throwable);
+                            Log.e("CustomerDisplayManager", "Error receiving message: ", throwable);
                         })
         );
 
@@ -149,11 +146,17 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
 
     @Override
     public void startPairingCustomerDisplay(ServiceInfo serviceInfo, Boolean isDarkMode, OnPairingServerListener listener) {
+        // when pairing manually, serviceInfo won't have a serverId, so we set it to the ipAddress
+        // after successful pairing, the serverId will be updated to the actual serverId
+        if(serviceInfo.getServerId() == null){
+            serviceInfo.setServerId(serviceInfo.getIpAddress());
+        }
+
         pairingCompositeDisposable.add(
-                reconnect(serviceInfo)
+                socketsManager.reconnect(serviceInfo.getServerId(), serviceInfo.getIpAddress())
                         .doOnSuccess(p -> listener.onCustomerDisplayFound())
-                        .flatMapCompletable(socketServiceInfoPair ->
-                                pairDisplay.startDisplayPairing(socketServiceInfoPair.first, socketServiceInfoPair.second, isDarkMode, listener)
+                        .flatMapCompletable(socket ->
+                                pairDisplay.startDisplayPairing(socket, serviceInfo, isDarkMode, listener)
                         )
                         .doOnSubscribe(disposable -> listener.onPairingServerStarted())
                         .subscribeOn(Schedulers.io())
@@ -261,9 +264,9 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
         sendUpdatesCompositeDisposable.add(
                 connectedDisplaysRepository.getCustomerDisplayById(updatedCustomerDisplay.getCustomerDisplayID())
                         .switchIfEmpty(Single.error(new IOException("Customer display not found")))
-                        .flatMapCompletable(display->{
+                        .flatMapCompletable(display -> {
                             Boolean isDarkModeChanged = display.getIsDarkModeActivated() != updatedCustomerDisplay.getIsDarkModeActivated();
-                            if(isDarkModeChanged){
+                            if (isDarkModeChanged) {
                                 return customerDisplayUpdatesSender.sendThemeUpdateToCustomerDisplay(updatedCustomerDisplay)
                                         .onErrorResumeNext(throwable -> {
                                             Log.e(TAG, "Error sending theme update to customer display: " + throwable.getMessage());
@@ -279,7 +282,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                                                     .ignoreElement();
                                         })
                                         .andThen(connectedDisplaysRepository.updateCustomerDisplay(updatedCustomerDisplay).ignoreElement());
-                            }else{
+                            } else {
                                 return connectedDisplaysRepository.updateCustomerDisplay(updatedCustomerDisplay).ignoreElement();
                             }
                         })
@@ -350,30 +353,5 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
         pairingCompositeDisposable.clear();
         troubleshootingCompositeDisposable.clear();
         sendUpdatesCompositeDisposable.clear();
-    }
-
-    private Single<Pair<Socket, ServiceInfo>> reconnectIfDisconnected(ServiceInfo serviceInfo) {
-        Socket socket = socketsManager.findSocketIfConnected(serviceInfo.getServerId());
-        if (socket == null) {
-            return tcpConnector.connectToServer(serviceInfo.getIpAddress(), serverPort)
-                    .doOnSuccess(newSocket -> socketsManager.addConnectedSocket(newSocket, serviceInfo))
-                    .map(updatedSocket -> new Pair<>(updatedSocket, serviceInfo));
-        } else {
-            return Single.just(new Pair<>(socket, serviceInfo));
-        }
-    }
-
-    private Single<Pair<Socket, ServiceInfo>> reconnect(ServiceInfo serviceInfo) {
-        Socket socket = socketsManager.findSocketIfConnected(serviceInfo.getServerId());
-        if (socket != null) {
-            socketsManager.removeConnectedSocket(serviceInfo.getServerId());
-            return tcpConnector.disconnectSafelyFromServer(socket)
-                    .andThen(tcpConnector.connectToServer(serviceInfo.getIpAddress(), serverPort))
-                    .doOnSuccess(newSocket -> socketsManager.addConnectedSocket(newSocket, serviceInfo))
-                    .map(updatedSocket -> new Pair<>(updatedSocket, serviceInfo));
-        }
-        return tcpConnector.connectToServer(serviceInfo.getIpAddress(), serverPort)
-                .doOnSuccess(newSocket -> socketsManager.addConnectedSocket(newSocket, serviceInfo))
-                .map(updatedSocket -> new Pair<>(updatedSocket, serviceInfo));
     }
 }
