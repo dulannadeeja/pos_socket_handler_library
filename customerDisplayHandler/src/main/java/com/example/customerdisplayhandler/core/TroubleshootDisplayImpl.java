@@ -79,7 +79,7 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
 
     private Completable connectToServiceWithoutListeners(ServiceInfo serviceInfo, CustomerDisplay customerDisplay) {
         return socketsManager.reconnect(customerDisplay.getCustomerDisplayID(), serviceInfo.getIpAddress())
-                .flatMapCompletable(socket -> updateCustomerDisplay(socket, serviceInfo, customerDisplay));
+                .flatMapCompletable(socket -> updateCustomerDisplay(serviceInfo, customerDisplay));
     }
 
     private Single<ServiceInfo> searchForCustomerDisplayWithoutListeners(CustomerDisplay customerDisplay) {
@@ -131,14 +131,14 @@ public class TroubleshootDisplayImpl implements ITroubleshootDisplay {
         return socketsManager.reconnect(newServiceInfo.getServerId(), newServiceInfo.getIpAddress())
                 .doOnSuccess(socket -> Log.i(TAG, "TCP connection established with customer display"))
                 .doOnSubscribe(disposable -> listener.onAttemptingToConnect())
-                .flatMapCompletable((socket) -> updateCustomerDisplay(socket, newServiceInfo, customerDisplay)
+                .flatMapCompletable((socket) -> updateCustomerDisplay(newServiceInfo, customerDisplay)
                         .doOnSubscribe(d -> listener.onSavingCustomerDisplay())
                 );
     }
 
 
 
-    private Completable updateCustomerDisplay(Socket socket, ServiceInfo newServiceInfo, CustomerDisplay customerDisplay) {
+    private Completable updateCustomerDisplay(ServiceInfo newServiceInfo, CustomerDisplay customerDisplay) {
         CustomerDisplay updatedCustomerDisplay = new CustomerDisplay(
                 newServiceInfo.getServerId(),
                 customerDisplay.getCustomerDisplayName(),

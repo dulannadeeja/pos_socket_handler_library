@@ -265,21 +265,11 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                 connectedDisplaysRepository.getCustomerDisplayById(updatedCustomerDisplay.getCustomerDisplayID())
                         .switchIfEmpty(Single.error(new IOException("Customer display not found")))
                         .flatMapCompletable(display -> {
-                            Boolean isDarkModeChanged = display.getIsDarkModeActivated() != updatedCustomerDisplay.getIsDarkModeActivated();
+                            boolean isDarkModeChanged = display.getIsDarkModeActivated() != updatedCustomerDisplay.getIsDarkModeActivated();
                             if (isDarkModeChanged) {
                                 return customerDisplayUpdatesSender.sendThemeUpdateToCustomerDisplay(updatedCustomerDisplay)
-                                        .onErrorResumeNext(throwable -> {
-                                            Log.e(TAG, "Error sending theme update to customer display: " + throwable.getMessage());
-                                            listener.onUpdateDisplayFailed(updatedCustomerDisplay.getCustomerDisplayName() + " theme update failed, please try again");
-                                            CustomerDisplay withoutThemeUpdate = new CustomerDisplay(
-                                                    updatedCustomerDisplay.getCustomerDisplayID(),
-                                                    updatedCustomerDisplay.getCustomerDisplayName(),
-                                                    updatedCustomerDisplay.getCustomerDisplayIpAddress(),
-                                                    updatedCustomerDisplay.getIsActivated(),
-                                                    display.getIsDarkModeActivated()
-                                            );
-                                            return connectedDisplaysRepository.updateCustomerDisplay(withoutThemeUpdate)
-                                                    .ignoreElement();
+                                        .doOnError(throwable -> {
+                                            updatedCustomerDisplay.setIsDarkModeActivated(!updatedCustomerDisplay.getIsDarkModeActivated());
                                         })
                                         .andThen(connectedDisplaysRepository.updateCustomerDisplay(updatedCustomerDisplay).ignoreElement());
                             } else {
@@ -289,9 +279,7 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(
-                                () -> {
-                                    listener.onDisplayUpdated();
-                                },
+                                listener::onDisplayUpdated,
                                 throwable -> {
                                     Log.e(TAG, "Error sending theme update to customer display: " + throwable.getMessage());
                                     listener.onUpdateDisplayFailed(updatedCustomerDisplay.getCustomerDisplayName() + " error occurred while updating.");

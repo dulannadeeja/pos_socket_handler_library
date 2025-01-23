@@ -36,4 +36,8 @@ public class CustomerDisplay implements Serializable {
     public Boolean getIsDarkModeActivated() {
         return isDarkModeActivated;
     }
+
+    public void setIsDarkModeActivated(Boolean isDarkModeActivated) {
+        this.isDarkModeActivated = isDarkModeActivated;
+    }
 }

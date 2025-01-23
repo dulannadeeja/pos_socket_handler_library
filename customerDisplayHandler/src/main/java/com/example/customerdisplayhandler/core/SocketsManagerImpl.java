@@ -75,24 +75,6 @@ public class SocketsManagerImpl implements ISocketsManager {
         }
     }
 
-    public Single<Socket> tryToReconnect(String serverId, String serverIpAddress) {
-        if (serverId == null || serverId.isEmpty() || serverIpAddress == null || serverIpAddress.isEmpty()) {
-            Log.wtf(TAG, "serverId: " + serverId + " serverIpAddress: " + serverIpAddress);
-            throw new IllegalArgumentException("serverId and serverIpAddress must not be null or empty");
-        }
-        Socket existingSocket = findSocket(serverId);
-        boolean isSocketInvalid = isSocketInvalid(existingSocket);
-        removeSocket(serverId);
-        if (isSocketInvalid) {
-            return tcpConnector.tryToConnectWithingTimeout(serverIpAddress, serverPort, NetworkConstants.WAITING_FOR_SOCKET_CONNECTION_TIMEOUT)
-                    .doOnSuccess(socket -> addSocket(serverId, socket));
-        } else {
-            return tcpConnector.disconnectSafelyFromServer(existingSocket)
-                    .andThen(tcpConnector.tryToConnectWithingTimeout(serverIpAddress, serverPort, NetworkConstants.WAITING_FOR_SOCKET_CONNECTION_TIMEOUT))
-                    .doOnSuccess(socket -> addSocket(serverId, socket));
-        }
-    }
-
     public Completable disconnectIfConnected(String serverId) {
         Socket existingSocket = findSocket(serverId);
         boolean isSocketInvalid = isSocketInvalid(existingSocket);

@@ -11,7 +11,6 @@ import io.reactivex.rxjava3.subjects.ReplaySubject;
 public interface ISocketsManager {
     Single<Socket> reconnectIfDisconnected(String serverId, String serverIpAddress);
     Single<Socket> reconnect(String serverId, String serverIpAddress);
-    Single<Socket> tryToReconnect(String serverId, String serverIpAddress);
     Completable disconnectIfConnected(String serverId);
     PublishSubject<Pair<String, Socket>> getSocketConnectionSubject();
 }
