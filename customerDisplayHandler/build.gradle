@@ -26,6 +26,22 @@ android {
     }
 }
 
+publishing {
+    publications {
+        // Defines a Maven publication named "release" to publish the AAR file to the local Maven repository.
+        // Sets the group ID, artifact ID, and version for the AAR, and specifies its file path.
+        // Enables other projects or modules to use the AAR as a dependency.
+        create('release', MavenPublication) {
+            groupId = 'com.github.dulannadeeja'
+            artifactId = 'customerDisplayHandler'
+            version = '1.0'
+
+            // Manually add the AAR file
+            artifact("$buildDir/outputs/aar/customerDisplayHandler-release.aar")
+        }
+    }
+}
+
 dependencies {
 
     implementation libs.appcompat
@@ -39,14 +55,8 @@ dependencies {
     implementation libs.rxandroid
 }
 
-afterEvaluate {
-    publishing {
-        publications {
-            release(MavenPublication) {
-                groupId = 'com.github.dulannadeeja'
-                artifactId = 'customerDisplayHandler'
-                version = '1.0'
-            }
-        }
-    }
+// Ensure that the AAR is bundled before publishing
+tasks.withType(PublishToMavenLocal).configureEach {
+    dependsOn(tasks.named("bundleReleaseAar"))
 }
+
