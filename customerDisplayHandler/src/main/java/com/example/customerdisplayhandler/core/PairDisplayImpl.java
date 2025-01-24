@@ -106,7 +106,7 @@ public class PairDisplayImpl implements IPairDisplay {
     private Completable sendConnectionReq(ServiceInfo serviceInfo, Boolean isDarkMode, String connectionReqMessageId) {
         return clientInfoManager.getClientInfo()
                 .flatMapCompletable(clientInfo -> {
-                    String connectionApprovalReq = createConnectionApprovalRequest(serviceInfo, clientInfo, isDarkMode, connectionReqMessageId);
+                    String connectionApprovalReq = createConnectionApprovalRequest(serviceInfo, clientInfo, isDarkMode, connectionReqMessageId,clientInfo.getTerminalID());
                     return socketsManager.reconnectIfDisconnected(serviceInfo.getServerId(), serviceInfo.getIpAddress())
                             .flatMapCompletable(reconnectedSocket -> tcpMessageSender.sendOneWayMessage(reconnectedSocket, serviceInfo.getServerId(), connectionApprovalReq)
                             );
@@ -126,12 +126,13 @@ public class PairDisplayImpl implements IPairDisplay {
                 .doOnError(error -> Log.w(TAG, "Connection approval not received from the server within the timeout period"));
     }
 
-    private String createConnectionApprovalRequest(ServiceInfo serviceInfo, ClientInfo clientInfo, Boolean isDarkMode, String messageID) {
+    private String createConnectionApprovalRequest(ServiceInfo serviceInfo, ClientInfo clientInfo, Boolean isDarkMode, String messageID,String terminalID) {
         ConnectionReq connectionReq = new ConnectionReq(
                 clientInfo.getClientID(),
                 clientInfo.getClientIpAddress(),
                 clientInfo.getClientDeviceName(),
-                isDarkMode
+                isDarkMode,
+                terminalID
         );
         SocketMessageBase socketMessageBase = new SocketMessageBase(
                 connectionReq,

@@ -99,9 +99,11 @@ public class CustomerDisplayUpdatesSenderImpl implements ICustomerDisplayUpdates
                         .doOnComplete(() -> {
                             Log.i(TAG, "Successfully sent updates to display: " + display.getCustomerDisplayName());
                             results.add(new Pair<>(display, true));
-                        }).onErrorResumeWith(handleFailedMessage(display, displayUpdates, results, command, messageId))
-                )
-                .onErrorComplete();
+                        }).onErrorResumeWith(
+                                handleFailedMessage(display, displayUpdates, results, command, messageId)
+                                        .onErrorComplete()
+                        )
+                );
     }
 
     private Completable handleFailedMessage(CustomerDisplay display, Object displayUpdates, List<Pair<CustomerDisplay, Boolean>> results, String command, String messageId) {

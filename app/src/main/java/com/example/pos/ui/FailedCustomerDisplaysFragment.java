@@ -72,9 +72,8 @@ public class FailedCustomerDisplaysFragment extends DialogFragment {
 
         RecyclerView recyclerView = view.findViewById(R.id.rv_failed_displays);
         adapter = new FailedDisplayListAdapter(failedCustomerDisplays, this::showTroubleshootDisplayFragment);
+        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.setAdapter(adapter);
-        RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(getContext());
-        recyclerView.setLayoutManager(layoutManager);
     }
 
     private void showTroubleshootDisplayFragment(CustomerDisplay customerDisplay) {

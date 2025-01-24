@@ -28,6 +28,7 @@ public interface ICustomerDisplayManager {
     void updateCustomerDisplay(CustomerDisplay updatedCustomerDisplay, OnUpdateDisplayListener listener);
     void stopSendingUpdatesToCustomerDisplays();
     void disposeCustomerDisplayManager();
+    void setTerminalID(String terminalID);
 
 
     interface AddCustomerDisplayListener {

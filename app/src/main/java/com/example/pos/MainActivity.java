@@ -1,6 +1,7 @@
 package com.example.pos;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.util.Pair;
 import android.widget.Button;
 import android.widget.Toast;
@@ -31,6 +32,7 @@ import com.example.pos.ui.FailedCustomerDisplaysFragment;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 public class MainActivity extends AppCompatActivity {
@@ -51,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
 
         App app = (App) getApplication();
         customerDisplayManager = app.getCustomerDisplayManager();
+        customerDisplayManager.setTerminalID("TERMINAL01");
 
         customerDisplayViewModel = new ViewModelProvider(this).get(CustomerDisplayViewModel.class);
         customerDisplayViewModel.setCustomerDisplayManager(customerDisplayManager);
@@ -106,6 +109,11 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onSomeUpdatesFailed(List<Pair<CustomerDisplay, Boolean>> failedCustomerDisplays) {
                 onSendDisplayUpdatesFailed(failedCustomerDisplays);
+                failedCustomerDisplays.forEach(
+                        customerDisplayBooleanPair -> {
+                            Log.e("MainActivity",customerDisplayBooleanPair.first.getCustomerDisplayID() + " ,status: " + customerDisplayBooleanPair.second);
+                        }
+                );
             }
 
             @Override

@@ -20,12 +20,15 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
     private final ISharedPrefManager ISharedPrefManager;
     private final IPManager ipManager;
     private final IJsonUtil jsonUtil;
+    private String terminalID;
 
     public IClientInfoManagerImpl(IPManager ipManager, ISharedPrefManager ISharedPrefManager, IJsonUtil jsonUtil) {
         this.ipManager = ipManager;
         this.ISharedPrefManager = ISharedPrefManager;
         this.jsonUtil = jsonUtil;
     }
+    @Override
+    public void setTerminalID(String terminalID) { this.terminalID = terminalID; }
 
     @Override
     public Single<ClientInfo> getClientInfo() {
@@ -55,7 +58,7 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
     private Single<ClientInfo> createNewClientInfo(String ipAddress) {
         String clientID = UUID.randomUUID().toString();
         String deviceName = android.os.Build.MODEL;
-        ClientInfo newClientInfo = new ClientInfo(clientID, ipAddress, deviceName);
+        ClientInfo newClientInfo = new ClientInfo(clientID, ipAddress, deviceName, terminalID);
         return saveClientInfo(newClientInfo)
                 .andThen(Single.just(newClientInfo))
                 .subscribeOn(Schedulers.io());
@@ -69,7 +72,8 @@ public class IClientInfoManagerImpl implements IClientInfoManager {
         ClientInfo updatedClientInfo = new ClientInfo(
                 clientInfo.getClientID(),
                 ipAddress,
-                clientInfo.getClientDeviceName()
+                clientInfo.getClientDeviceName(),
+                terminalID
         );
         return saveClientInfo(updatedClientInfo)
                 .andThen(Single.just(updatedClientInfo))

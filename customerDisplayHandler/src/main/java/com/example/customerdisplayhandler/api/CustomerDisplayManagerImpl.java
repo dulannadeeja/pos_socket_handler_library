@@ -117,6 +117,11 @@ public class CustomerDisplayManagerImpl implements ICustomerDisplayManager {
     }
 
     @Override
+    public void setTerminalID(String terminalID) {
+        clientInfoManager.setTerminalID(terminalID);
+    }
+
+    @Override
     public void startSearchForCustomerDisplays(INetworkServiceDiscoveryManager.SearchListener searchListener) {
         // send multicast message to all devices to turn on their network service discovery
         sendMulticastMessage("all_devices." + NetworkConstants.TURN_ON_ALL_DEVICES_COMMAND);

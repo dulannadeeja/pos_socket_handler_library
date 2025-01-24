@@ -46,7 +46,6 @@ public class ConnectedCustomerDisplayAdapter extends RecyclerView.Adapter<Connec
         private final TextView customerDisplayName;
         private final TextView customerDisplayIpAddress;
         private final View itemView;
-        ;
         private final ImageView troubleshootingButton;
         private final ImageView disconnectButton;
         private final MaterialSwitch displayConnectionSwitch;

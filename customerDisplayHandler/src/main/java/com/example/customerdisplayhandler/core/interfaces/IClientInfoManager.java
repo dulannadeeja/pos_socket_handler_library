@@ -6,4 +6,5 @@ import io.reactivex.rxjava3.core.Single;
 
 public interface IClientInfoManager {
     Single<ClientInfo> getClientInfo();
+    void setTerminalID(String terminalID);
 }
