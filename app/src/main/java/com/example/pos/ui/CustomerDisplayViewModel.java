@@ -90,6 +90,7 @@ public class CustomerDisplayViewModel extends ViewModel {
             @Override
             public void onUpdateDisplayFailed(String errorMessage) {
                 showToast(errorMessage);
+                onUpdateDisplayListener.onDisplayUpdateComplete();
             }
         });
     }
