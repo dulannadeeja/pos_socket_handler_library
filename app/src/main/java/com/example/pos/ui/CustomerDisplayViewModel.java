@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel;
 import com.example.customerdisplayhandler.api.ICustomerDisplayManager;
 import com.example.customerdisplayhandler.model.CustomerDisplay;
 
+import java.lang.ref.WeakReference;
 import java.util.List;
 
 public class CustomerDisplayViewModel extends ViewModel {
@@ -14,6 +15,7 @@ public class CustomerDisplayViewModel extends ViewModel {
     private ICustomerDisplayManager customerDisplayManager;
     private final MutableLiveData<List<CustomerDisplay>> pairedDisplays = new MutableLiveData<>();
     private final MutableLiveData<String> toastMessage = new MutableLiveData<>();
+    private WeakReference<ICustomerDisplayManager.OnUpdateDisplayListener> weakListener;
 
     public void setCustomerDisplayManager(ICustomerDisplayManager customerDisplayManager) {
         this.customerDisplayManager = customerDisplayManager;
@@ -78,21 +80,34 @@ public class CustomerDisplayViewModel extends ViewModel {
         });
     }
 
-    public void onUpdateCustomerDisplay(CustomerDisplay customerDisplay, OnUpdateDisplayListener onUpdateDisplayListener) {
-        customerDisplayManager.updateCustomerDisplay(customerDisplay, new ICustomerDisplayManager.OnUpdateDisplayListener() {
+    public void onUpdateCustomerDisplay(CustomerDisplay customerDisplay, OnUpdateDisplayListener listener) {
+        WeakReference<OnUpdateDisplayListener> listenerWeakReference = new WeakReference<>(listener);
+        weakListener = new WeakReference<>(new ICustomerDisplayManager.OnUpdateDisplayListener() {
             @Override
             public void onDisplayUpdated() {
                 showToast(customerDisplay.getCustomerDisplayName() + " updated successfully");
                 refreshConnectedDisplays();
-                onUpdateDisplayListener.onDisplayUpdateComplete();
+                if(listenerWeakReference.get() != null){
+                    listenerWeakReference.get().onDisplayUpdateComplete();
+                }
             }
 
             @Override
             public void onUpdateDisplayFailed(String errorMessage) {
                 showToast(errorMessage);
-                onUpdateDisplayListener.onDisplayUpdateComplete();
+                if (listenerWeakReference.get() != null) {
+                    listenerWeakReference.get().onDisplayUpdateComplete();
+                }
+                customerDisplayManager.stopSendingUpdatesToCustomerDisplays();
             }
         });
+        customerDisplayManager.updateCustomerDisplay(customerDisplay, weakListener.get());
+    }
+
+    public void removeUpdateDisplayListener() {
+        if (weakListener != null) {
+            weakListener = null;
+        }
     }
 
     public void refreshConnectedDisplays() {
