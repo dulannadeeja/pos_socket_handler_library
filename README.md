@@ -1,4 +1,4 @@
-# pos_socket_handler_library
+# POS_socket_handler_library
 The pos_socket_handler_library is a powerful and efficient solution tailored for managing customer-facing displays and KOT (Kitchen Order Ticket) displays in POS (Point-of-Sale) Android applications. This library streamlines the process of discovering, connecting, and managing customer and KOT displays over the current Wi-Fi network, ensuring seamless communication between the primary POS device and connected displays.
 
 
